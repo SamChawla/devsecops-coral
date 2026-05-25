@@ -1,0 +1,18 @@
+[
+  {
+    "package": "django",
+    "cve": "GHSA-test-0001",
+    "summary": "Test vulnerability",
+    "severity": "CRITICAL",
+    "jira_ticket": "SEC-1",
+    "jira_status": "In Progress"
+  },
+  {
+    "package": "requests",
+    "cve": "GHSA-test-0002",
+    "summary": "Another test vulnerability",
+    "severity": "HIGH",
+    "jira_ticket": null,
+    "jira_status": null
+  }
+]

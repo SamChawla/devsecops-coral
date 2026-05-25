@@ -1,0 +1,152 @@
+# OSV (Open Source Vulnerabilities) Source Spec for Coral DSL v3
+# API docs: https://google.github.io/osv.dev/api/
+
+name: osv
+version: 0.2.0
+dsl_version: 3
+backend: http
+base_url: https://api.osv.dev
+
+test_queries:
+  - >
+    SELECT id, summary
+    FROM osv.search_vulnerabilities(package => 'django', ecosystem => 'PyPI')
+    LIMIT 3
+  - >
+    SELECT id, summary
+    FROM osv.vulnerability_detail
+    WHERE id = 'GHSA-2655-q453-22f9'
+    LIMIT 1
+
+functions:
+  - name: search_vulnerabilities
+    description: Search OSV for vulnerabilities affecting a package and ecosystem.
+    args:
+      - name: package
+        required: true
+        bind:
+          arg: package
+      - name: ecosystem
+        required: true
+        bind:
+          arg: ecosystem
+      - name: version
+        required: false
+        bind:
+          arg: version
+    request:
+      method: POST
+      path: /v1/query
+      body:
+        - path: [package, name]
+          from: arg
+          key: package
+        - path: [package, ecosystem]
+          from: arg
+          key: ecosystem
+        - path: [version]
+          from: arg
+          key: version
+    response:
+      rows_path: [vulns]
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+      page_start: 0
+      page_step: 1
+      offset_start: 0
+      link_header_require_results: false
+    columns:
+      - name: id
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [id]}
+      - name: summary
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [summary]}
+      - name: details
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [details]}
+      - name: aliases
+        type: Utf8
+        nullable: true
+        expr:
+          kind: join_array_path
+          path: [aliases]
+          item_path: []
+          separator: ","
+      - name: published
+        type: Timestamp
+        nullable: true
+        expr: {kind: path, path: [published]}
+      - name: modified
+        type: Timestamp
+        nullable: true
+        expr: {kind: path, path: [modified]}
+      - name: affected__package__name
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [affected, "0", package, name]}
+      - name: affected__package__ecosystem
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [affected, "0", package, ecosystem]}
+      - name: severity
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [database_specific, severity]}
+
+tables:
+  - name: vulnerability_detail
+    description: Full details for a single vulnerability by OSV ID.
+    filters:
+      - name: id
+        required: true
+    request:
+      method: GET
+      path: /v1/vulns/{{filter.id}}
+    response:
+      allow_404_empty: false
+      row_strategy: direct
+    pagination:
+      mode: none
+      page_start: 0
+      page_step: 1
+      offset_start: 0
+      link_header_require_results: false
+    columns:
+      - name: id
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [id]}
+      - name: summary
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [summary]}
+      - name: details
+        type: Utf8
+        nullable: true
+        expr: {kind: path, path: [details]}
+      - name: aliases
+        type: Utf8
+        nullable: true
+        expr:
+          kind: join_array_path
+          path: [aliases]
+          item_path: []
+          separator: ","
+      - name: published
+        type: Timestamp
+        nullable: true
+        expr: {kind: path, path: [published]}
+      - name: modified
+        type: Timestamp
+        nullable: true
+        expr: {kind: path, path: [modified]}
+      - name: withdrawn
+        type: Timestamp
+        nullable: true
+        expr: {kind: path, path: [withdrawn]}
