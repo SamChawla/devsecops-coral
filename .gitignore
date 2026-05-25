@@ -1,0 +1,101 @@
+# ============================================
+# devsecops-coral .gitignore
+# ============================================
+# CRITICAL: This file is a security guardrail.
+# Do NOT remove entries without reviewing the 
+# Sensitive Information Guardrails in CLAUDE.md.
+# ============================================
+
+# ── Secrets — NEVER commit ──────────────────
+.env
+.env.*
+!.env.example
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+*.credential
+*.secret
+
+# ── Coral config (may contain API tokens) ───
+.coral/
+coral-config.yaml
+coral-config.yml
+*.coral.yaml
+
+# ── Sentry ──────────────────────────────────
+.sentryclirc
+
+# ── Atlassian / Jira ────────────────────────
+.atlassian/
+
+# ── Grafana ─────────────────────────────────
+grafana-config.json
+
+# ── Anthropic ───────────────────────────────
+.anthropic
+
+# ── Python ──────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.venv/
+venv/
+ENV/
+env/
+*.whl
+
+# ── Testing ─────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ── IDE ─────────────────────────────────────
+.idea/
+.vscode/
+*.code-workspace
+.cursor/
+.cursorrules
+*.swp
+*.swo
+*~
+
+# ── OS ──────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Demo data (might contain real info) ─────
+demo/data/
+demo/*.sqlite3
+demo/**/*.db
+demo/**/output/
+
+# ── Logs ────────────────────────────────────
+*.log
+logs/
+
+# ── Misc ────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+.cache/

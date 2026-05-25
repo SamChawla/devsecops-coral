@@ -1,0 +1,33 @@
+# INTENTIONALLY VULNERABLE DEPENDENCIES
+# 
+# These versions are chosen because they have known CVEs in the OSV database.
+# This is for hackathon demo purposes — to generate real Dependabot alerts
+# in GitHub and real vulnerability data when queried via OSV.
+#
+# DO NOT use these versions in production.
+
+django==4.1.0
+# Known: CVE-2023-36053, CVE-2023-41164, CVE-2023-43665 (ReDoS, path traversal)
+
+requests==2.25.0
+# Known: CVE-2023-32681 (Unintended leak of Proxy-Authorization header)
+
+flask==2.2.0
+# Known: CVE-2023-30861 (cookie session vulnerability)
+
+celery==5.2.0
+# Known: CVE-2023-32766 (command injection via serializer)
+
+jinja2==3.1.1
+# Known: CVE-2024-22195 (XSS via xmlattr filter)
+
+pillow==9.0.0
+# Known: Multiple CVEs (buffer overflow, DoS)
+
+pydantic==1.10.0
+# Known: CVE-2024-3772 (DoS via email validation)
+
+# App dependencies (current/safe)
+fastapi>=0.109.0
+uvicorn>=0.27.0
+sentry-sdk[fastapi]>=1.40.0
