@@ -1,0 +1,304 @@
+"""FastAPI backend for the devsecops-coral dashboard."""
+
+from __future__ import annotations
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from devsecops_coral.agent import AgentError
+from devsecops_coral.agent import ask as run_agent_ask
+from devsecops_coral.config import parse_packages, project_root
+from devsecops_coral.coral_client import (
+    CoralError,
+    add_bundled_source,
+    add_custom_source,
+    execute_query,
+    get_sources_metadata,
+    remove_source,
+    test_source,
+)
+from devsecops_coral.integrations import get_integration, list_integrations
+from devsecops_coral.models import (
+    AskRequest,
+    AskResponse,
+    CorrelateResponse,
+    IntegrationInfo,
+    IntegrationInputModel,
+    IntegrationsResponse,
+    PostureResponse,
+    ScanResponse,
+    SourceActionResponse,
+    SourceConnectRequest,
+    SourceInfo,
+    SourcesResponse,
+    TimelineResponse,
+)
+from devsecops_coral.queries import run_correlate, run_posture, run_scan, run_timeline
+
+app = FastAPI(
+    title="devsecops-coral",
+    description="Cross-stack security correlation powered by Coral SQL",
+    version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+FRONTEND_DIST = project_root() / "frontend" / "dist"
+
+
+def _coral_http_error(exc: Exception) -> HTTPException:
+    """Map Coral/agent errors to HTTP 502."""
+    return HTTPException(status_code=502, detail=str(exc))
+
+
+def _source_status_list() -> list[SourceInfo]:
+    """Return the normalized source status list used across source endpoints."""
+    metadata, _sql = get_sources_metadata()
+    return [SourceInfo(**item) for item in metadata]
+
+
+def _integration_catalog() -> list[IntegrationInfo]:
+    """Return integration metadata enriched with connection status."""
+    source_map = {source.name: source for source in _source_status_list()}
+    catalog: list[IntegrationInfo] = []
+    for integration in list_integrations():
+        if integration.kind == "planned":
+            continue
+        source = source_map.get(integration.name)
+        catalog.append(
+            IntegrationInfo(
+                name=integration.name,
+                kind=integration.kind,
+                description=integration.description,
+                docs_url=integration.docs_url,
+                connected=source.connected if source else False,
+                table_count=source.table_count if source else 0,
+                mode=source.mode if source else "cli",
+                inputs=[
+                    IntegrationInputModel(
+                        key=item.key,
+                        label=item.label,
+                        required=item.required,
+                        secret=item.secret,
+                        placeholder=item.placeholder,
+                        help_text=item.help_text,
+                        default=item.default,
+                    )
+                    for item in integration.inputs
+                ],
+            )
+        )
+    return catalog
+
+
+def _validated_source_values(body: SourceConnectRequest) -> tuple[str, dict[str, str]]:
+    """Validate UI-provided source credentials before invoking Coral."""
+    integration = get_integration(body.name)
+    if integration.kind == "planned":
+        raise HTTPException(
+            status_code=400, detail=f"{integration.name} is planned but not implemented yet."
+        )
+
+    values = {key: value.strip() for key, value in body.values.items() if value and value.strip()}
+    missing = [
+        item.label for item in integration.inputs if item.required and not values.get(item.key)
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required fields: {', '.join(missing)}.",
+        )
+    return integration.name, values
+
+
+@app.get("/api/scan", response_model=ScanResponse)
+async def api_scan(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery"),
+) -> ScanResponse:
+    """Return vulnerability scan results and the Coral SQL used."""
+    try:
+        pkg_list = parse_packages(packages)
+        result = run_scan(ecosystem=ecosystem, packages=pkg_list)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+    return ScanResponse(
+        data=result.data,
+        sql=result.sql,
+        ecosystem=ecosystem,
+        packages=pkg_list,
+    )
+
+
+@app.get("/api/correlate", response_model=CorrelateResponse)
+async def api_correlate(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery"),
+    since: str = Query(default="7d"),
+) -> CorrelateResponse:
+    """Return vulnerability-error correlations and the Coral SQL used."""
+    try:
+        pkg_list = parse_packages(packages)
+        result = run_correlate(ecosystem=ecosystem, packages=pkg_list, since=since)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+    return CorrelateResponse(
+        data=result.data,
+        sql=result.sql,
+        since=since,
+        ecosystem=ecosystem,
+        packages=pkg_list,
+    )
+
+
+@app.get("/api/timeline", response_model=TimelineResponse)
+async def api_timeline(
+    since: str = Query(default="24h"),
+    github_owner: str | None = Query(default=None),
+    github_repo: str | None = Query(default=None),
+) -> TimelineResponse:
+    """Return unified event timeline and the Coral SQL used."""
+    try:
+        result = run_timeline(since=since, owner=github_owner, repo=github_repo)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+    return TimelineResponse(data=result.data, sql=result.sql, since=since)
+
+
+@app.post("/api/ask", response_model=AskResponse)
+async def api_ask(body: AskRequest) -> AskResponse:
+    """Agent: natural language to SQL to results to analysis."""
+    try:
+        result = run_agent_ask(body.query)
+    except (AgentError, CoralError) as exc:
+        raise _coral_http_error(exc) from exc
+    return AskResponse(
+        data=result["rows"],
+        sql=result["sql"],
+        analysis=result["analysis"],
+        question=result["question"],
+        row_count=result["row_count"],
+    )
+
+
+@app.post("/api/sql", response_model=AskResponse)
+async def api_raw_sql(body: AskRequest) -> AskResponse:
+    """Execute raw Coral SQL (SELECT only)."""
+    sql = body.query.strip()
+    if not sql.upper().startswith("SELECT"):
+        raise HTTPException(status_code=400, detail="Only SELECT queries are allowed.")
+    try:
+        rows = execute_query(sql)
+    except CoralError as exc:
+        raise _coral_http_error(exc) from exc
+    return AskResponse(
+        data=rows,
+        sql=sql,
+        analysis=f"Query returned {len(rows)} row(s).",
+        question=sql,
+        row_count=len(rows),
+    )
+
+
+@app.get("/api/sources", response_model=SourcesResponse)
+async def api_sources() -> SourcesResponse:
+    """Return connected source status with table counts."""
+    metadata, sql = get_sources_metadata()
+    return SourcesResponse(
+        sources=[SourceInfo(**item) for item in metadata],
+        sql=sql,
+    )
+
+
+@app.get("/api/integrations", response_model=IntegrationsResponse)
+async def api_integrations() -> IntegrationsResponse:
+    """Return the integration catalog with current connection status."""
+    return IntegrationsResponse(integrations=_integration_catalog())
+
+
+@app.post("/api/sources/connect", response_model=SourceActionResponse)
+async def api_connect_source(body: SourceConnectRequest) -> SourceActionResponse:
+    """Connect or update a Coral source using UI-provided credentials."""
+    try:
+        name, values = _validated_source_values(body)
+        integration = get_integration(name)
+        if integration.kind == "custom":
+            if not integration.spec_path:
+                raise HTTPException(
+                    status_code=400, detail=f"No source spec registered for {name}."
+                )
+            add_custom_source(str(integration.spec_path), env=values)
+        else:
+            add_bundled_source(name, interactive=False, env=values)
+    except HTTPException:
+        raise
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+
+    return SourceActionResponse(
+        source=name,
+        message=f"{name} connected successfully.",
+        sources=_source_status_list(),
+    )
+
+
+@app.post("/api/sources/{name}/test", response_model=SourceActionResponse)
+async def api_test_source(name: str) -> SourceActionResponse:
+    """Run Coral validation for an installed source."""
+    try:
+        test_source(name)
+    except CoralError as exc:
+        raise _coral_http_error(exc) from exc
+    return SourceActionResponse(
+        source=name,
+        message=f"{name} validated successfully.",
+        sources=_source_status_list(),
+    )
+
+
+@app.delete("/api/sources/{name}", response_model=SourceActionResponse)
+async def api_remove_source(name: str) -> SourceActionResponse:
+    """Remove an installed source."""
+    try:
+        remove_source(name)
+    except CoralError as exc:
+        raise _coral_http_error(exc) from exc
+    return SourceActionResponse(
+        source=name,
+        message=f"{name} removed successfully.",
+        sources=_source_status_list(),
+    )
+
+
+@app.get("/api/posture", response_model=PostureResponse)
+async def api_posture(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery"),
+) -> PostureResponse:
+    """Return aggregated severity counts and untracked CVE count."""
+    try:
+        return run_posture(ecosystem=ecosystem, packages=packages)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+
+
+if FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.exception_handler(404)
+    async def spa_404_handler(request: Request, exc: HTTPException) -> FileResponse | JSONResponse:
+        """Serve the SPA for non-API 404 routes; avoids catch-all GET route conflicts."""
+        if request.url.path.startswith("/api"):
+            return JSONResponse({"detail": "Not found"}, status_code=404)
+        index = FRONTEND_DIST / "index.html"
+        if index.is_file():
+            return FileResponse(index)
+        return JSONResponse({"detail": "Frontend not built"}, status_code=404)
