@@ -48,7 +48,8 @@ def run_posture(
     result: QueryResult = run_scan(ecosystem=ecosystem, packages=pkg_list)
     counts = _count_severities(result.data)
     untracked = _count_untracked(result.data)
-    total = sum(counts.values())
+    # Count every row that has a CVE ID — includes UNKNOWN severity rows
+    total = sum(1 for row in result.data if row.get("cve"))
 
     return PostureResponse(
         critical=counts["critical"],

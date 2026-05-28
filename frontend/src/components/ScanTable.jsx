@@ -156,7 +156,11 @@ export default function ScanTable({ rows, loading, onFocusPackage, onAskQuestion
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             {untrackedCount > 0 ? <Pill color={T.orange}>{untrackedCount} untracked</Pill> : null}
             <span style={{ fontSize: 11, color: T.textMuted, fontFamily: T.mono }}>
-              {loading ? "scanning…" : `${filtered.length} / ${data.length} CVEs`}
+              {loading
+                ? "scanning…"
+                : filtered.length < data.length
+                  ? `${filtered.length} / ${data.length} CVEs`
+                  : `${data.length} CVEs`}
             </span>
           </div>
         }
@@ -249,7 +253,7 @@ export default function ScanTable({ rows, loading, onFocusPackage, onAskQuestion
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderTop: `1px solid ${T.border}`, gap: 12 }}>
             <span style={{ fontSize: 11, color: T.textMuted, fontFamily: T.mono }}>
-              {page + 1}/{totalPages} · {filtered.length} of {data.length} CVEs
+              {page + 1}/{totalPages} · {filtered.length < data.length ? `${filtered.length} of ${data.length}` : filtered.length} CVEs
             </span>
             <div style={{ display: "flex", gap: 6 }}>
               <ActionButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>← Prev</ActionButton>
