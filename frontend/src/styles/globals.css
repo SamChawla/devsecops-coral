@@ -1,0 +1,163 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   CoralSentinel — Security & Compliance Monitor
+   CSS custom-property theme system (data-theme="dark" | "light")
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Dark theme (default) ─────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Backgrounds — slate-900 base (lighter than before) */
+  --t-bg:            #0f172a;
+  --t-surface:       #1e293b;
+  --t-surface-alt:   #263348;
+  --t-surface-hover: #2d3e52;
+  --t-surface-mid:   #334155;
+
+  /* Frosted / overlay */
+  --t-frosted:    rgba(15, 23, 42, 0.88);
+  --t-code-bg:    rgba(0, 0, 0, 0.35);
+  --t-card-dim:   rgba(15, 23, 42, 0.92);
+  --t-input-bg:   rgba(0, 0, 0, 0.22);
+
+  /* Sidebar gradient stops */
+  --t-sidebar-top: #263348;
+  --t-sidebar-bot: #0f172a;
+
+  /* Borders */
+  --t-border:        rgba(148, 163, 184, 0.12);
+  --t-border-hover:  rgba(148, 163, 184, 0.26);
+  --t-border-strong: rgba(148, 163, 184, 0.42);
+
+  /* Text */
+  --t-text:           #f1f5f9;
+  --t-text-secondary: #94a3b8;
+  --t-text-muted:     #64748b;
+
+  /* Buttons */
+  --t-btn-base:  rgba(255, 255, 255, 0.03);
+  --t-btn-hover: rgba(148, 163, 184, 0.08);
+
+  /* Grid pattern */
+  --t-grid-dot:         rgba(148, 163, 184, 0.04);
+  --t-grid-glow-top:    rgba(59, 130, 246, 0.05);
+  --t-grid-glow-bottom: rgba(255, 107, 53, 0.03);
+
+  /* Scrollbar */
+  --t-scrollbar:       rgba(148, 163, 184, 0.14);
+  --t-scrollbar-hover: rgba(148, 163, 184, 0.28);
+
+  /* Shadows */
+  --t-shadow-card:     0 1px 3px rgba(0,0,0,0.45), 0 0 0 1px rgba(148,163,184,0.06);
+  --t-shadow-elevated: 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3);
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --t-bg:            #f0f4f8;
+  --t-surface:       #ffffff;
+  --t-surface-alt:   #f8fafc;
+  --t-surface-hover: #f1f5f9;
+  --t-surface-mid:   #e2e8f0;
+
+  /* Frosted / overlay */
+  --t-frosted:   rgba(248, 250, 252, 0.92);
+  --t-code-bg:   rgba(15, 23, 42, 0.04);
+  --t-card-dim:  rgba(248, 250, 252, 0.95);
+  --t-input-bg:  rgba(15, 23, 42, 0.04);
+
+  /* Sidebar gradient stops */
+  --t-sidebar-top: #f1f5f9;
+  --t-sidebar-bot: #e2e8f0;
+
+  /* Borders */
+  --t-border:        rgba(15, 23, 42, 0.1);
+  --t-border-hover:  rgba(15, 23, 42, 0.22);
+  --t-border-strong: rgba(15, 23, 42, 0.38);
+
+  /* Text */
+  --t-text:           #0f172a;
+  --t-text-secondary: #475569;
+  --t-text-muted:     #94a3b8;
+
+  /* Buttons */
+  --t-btn-base:  rgba(15, 23, 42, 0.03);
+  --t-btn-hover: rgba(15, 23, 42, 0.06);
+
+  /* Grid pattern */
+  --t-grid-dot:         rgba(15, 23, 42, 0.04);
+  --t-grid-glow-top:    rgba(59, 130, 246, 0.025);
+  --t-grid-glow-bottom: rgba(255, 107, 53, 0.02);
+
+  /* Scrollbar */
+  --t-scrollbar:       rgba(15, 23, 42, 0.14);
+  --t-scrollbar-hover: rgba(15, 23, 42, 0.28);
+
+  /* Shadows */
+  --t-shadow-card:     0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(15,23,42,0.07);
+  --t-shadow-elevated: 0 4px 24px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* ── Base styles ──────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: var(--t-bg);
+  color: var(--t-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Dot-grid texture */
+  background-image:
+    radial-gradient(circle at 50% 0%,   var(--t-grid-glow-top)    0%, transparent 60%),
+    radial-gradient(ellipse at 0% 100%, var(--t-grid-glow-bottom) 0%, transparent 50%),
+    radial-gradient(var(--t-grid-dot) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
+  background-attachment: fixed;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--t-scrollbar);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--t-scrollbar-hover);
+}
+
+::selection {
+  background: rgba(255, 107, 53, 0.25);
+  color: inherit;
+}
+
+/* ── Focus ring ───────────────────────────────────────────────────────── */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(255, 107, 53, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12) !important;
+}
+
+/* ── Click feedback on buttons ────────────────────────────────────────── */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
