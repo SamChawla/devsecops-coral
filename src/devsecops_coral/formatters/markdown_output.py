@@ -7,10 +7,19 @@ from typing import Any
 
 def scan_markdown(rows: list[dict[str, Any]]) -> str:
     """Format scan results as Markdown."""
-    lines = ["# Security Posture Scan", "", "| Package | CVE | Severity | Jira | Status |", "|---|---|---|---|---|"]
+    lines = [
+        "# Security Posture Scan",
+        "",
+        "| Package | CVE | Severity | Jira | Status |",
+        "|---|---|---|---|---|",
+    ]
     for row in rows:
         ticket = row.get("jira_ticket") or "—"
-        status = "Clean" if not row.get("cve") else ("Untracked" if not row.get("jira_ticket") else row.get("jira_status", "Tracked"))
+        status = (
+            "Clean"
+            if not row.get("cve")
+            else ("Untracked" if not row.get("jira_ticket") else row.get("jira_status", "Tracked"))
+        )
         lines.append(
             f"| {row.get('package', '—')} | {row.get('cve') or '—'} | {row.get('severity') or '—'} "
             f"| {ticket} | {status} |"
