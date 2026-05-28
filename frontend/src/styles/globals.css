@@ -1,14 +1,14 @@
-/* ─────────────────────────────────────────────────────────────────────────
-   CoralSentinel — Security & Compliance Monitor
+/*
+   devsecops-coral - Security Operations Agent
    CSS custom-property theme system (data-theme="dark" | "light")
-   ───────────────────────────────────────────────────────────────────────── */
+*/
 
-/* ── Dark theme (default) ─────────────────────────────────────────────── */
+/* Dark theme (default) */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Backgrounds — slate-900 base (lighter than before) */
+  /* Backgrounds */
   --t-bg:            #0f172a;
   --t-surface:       #1e293b;
   --t-surface-alt:   #263348;
@@ -53,7 +53,7 @@
   --t-shadow-elevated: 0 4px 24px rgba(0,0,0,0.5), 0 1px 4px rgba(0,0,0,0.3);
 }
 
-/* ── Light theme ──────────────────────────────────────────────────────── */
+/* Light theme */
 [data-theme="light"] {
   color-scheme: light;
 
@@ -102,7 +102,7 @@
   --t-shadow-elevated: 0 4px 24px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
 }
 
-/* ── Base styles ──────────────────────────────────────────────────────── */
+/* Base styles */
 * {
   box-sizing: border-box;
 }
@@ -132,7 +132,7 @@ select {
   font-family: inherit;
 }
 
-/* ── Scrollbar ────────────────────────────────────────────────────────── */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -148,7 +148,7 @@ select {
   color: inherit;
 }
 
-/* ── Focus ring ───────────────────────────────────────────────────────── */
+/* Focus ring */
 input:focus,
 textarea:focus,
 select:focus {
@@ -157,7 +157,7 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12) !important;
 }
 
-/* ── Click feedback on buttons ────────────────────────────────────────── */
+/* Click feedback on buttons */
 button:not(:disabled):active {
   transform: scale(0.97);
 }

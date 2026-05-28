@@ -55,7 +55,7 @@ CORAL_BIN: str = os.getenv(
 GITHUB_OWNER: str = os.getenv("GITHUB_OWNER", "")
 GITHUB_REPO: str = os.getenv("GITHUB_REPO", "devsecops-coral")
 
-# ── Write credentials (Phase 3 ACT layer) ────────────────────────────────────
+# -- Write credentials (Phase 3 ACT layer) -----------------------------------
 
 # GitHub — fine-grained PAT with contents:write + pull_requests:write
 GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")

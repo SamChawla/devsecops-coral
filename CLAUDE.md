@@ -84,21 +84,21 @@ ruff>=0.5.0
 
 ```
 src/devsecops_coral/       # All source code here
-├── cli.py                 # Typer app with commands: scan, correlate, timeline, ask, serve
-├── api.py                 # FastAPI app — dashboard REST endpoints
-├── models.py              # Pydantic request/response models
-├── agent.py               # LLM integration — intent parsing, SQL generation, analysis
-├── coral_client.py        # Coral MCP/CLI wrapper — the ONLY file that talks to Coral
-├── queries/               # SQL query templates (parameterized)
-│   ├── correlate.py       # Vulnerability-deploy-error correlation
-│   ├── scan.py            # Security posture scan
-│   ├── timeline.py        # Unified event timeline
-│   └── posture.py         # Severity aggregation
-├── formatters/            # Output formatting
-│   ├── rich_output.py     # Rich terminal tables with severity colors
-│   ├── json_output.py     # JSON export
-│   └── markdown_output.py # Markdown report
-└── config.py              # Configuration (Coral path, LLM settings)
++-- cli.py                 # Typer app with commands: scan, correlate, timeline, ask, serve
++-- api.py                 # FastAPI app - dashboard REST endpoints
++-- models.py              # Pydantic request/response models
++-- agent.py               # LLM integration - intent parsing, SQL generation, analysis
++-- coral_client.py        # Coral MCP/CLI wrapper - the ONLY file that talks to Coral
++-- queries/               # SQL query templates (parameterized)
+|   +-- correlate.py       # Vulnerability-deploy-error correlation
+|   +-- scan.py            # Security posture scan
+|   +-- timeline.py        # Unified event timeline
+|   +-- posture.py         # Severity aggregation
++-- formatters/            # Output formatting
+|   +-- rich_output.py     # Rich terminal tables with severity colors
+|   +-- json_output.py     # JSON export
+|   +-- markdown_output.py # Markdown report
++-- config.py              # Configuration (Coral path, LLM settings)
 ```
 
 **Rules:**
@@ -318,13 +318,13 @@ def test_scan_query(mocker):
 
 ```
 components/
-├── SourceStatus.jsx      # Left sidebar: 5 sources with connection dots + MCP/cache status
-├── PostureOverview.jsx   # Top cards: CRITICAL/HIGH/MED/LOW severity counters
-├── ScanTable.jsx         # Full vulnerability table with all columns
-├── CorrelationView.jsx   # Vuln ↔ Error signal cards (🔴 ACTIVE / 🟡 MONITOR / 🟢 CLEAN)
-├── Timeline.jsx          # Vertical timeline with source-colored dots
-├── QueryConsole.jsx      # Dual-mode input: natural language ↔ raw SQL + results
-└── SqlViewer.jsx         # Shows generated Coral SQL (transparency for judges)
++-- SourceStatus.jsx      # Left sidebar: 5 sources with connection dots + MCP/cache status
++-- PostureOverview.jsx   # Top cards: CRITICAL/HIGH/MED/LOW severity counters
++-- ScanTable.jsx         # Full vulnerability table with all columns
++-- CorrelationView.jsx   # Vuln vs Error signal cards (ACTIVE / MONITOR / CLEAN)
++-- Timeline.jsx          # Vertical timeline with source-colored dots
++-- QueryConsole.jsx      # Dual-mode input: natural language vs raw SQL + results
++-- SqlViewer.jsx         # Shows generated Coral SQL (transparency for judges)
 ```
 
 - Every component receives data from the API via `useApi` hooks — no hardcoded mock data in production

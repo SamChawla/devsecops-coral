@@ -9,7 +9,7 @@
  * and never change between themes.
  */
 
-/* ── Theme-sensitive tokens (CSS vars) ──────────────────────────────── */
+/* Theme-sensitive tokens (CSS vars) */
 export const T = {
   // Backgrounds
   bg:           "var(--t-bg)",
@@ -46,7 +46,7 @@ export const T = {
   shadowCard:     "var(--t-shadow-card)",
   shadowElevated: "var(--t-shadow-elevated)",
 
-  // ── Fixed tokens (same in all themes) ────────────────────────────────
+  // Fixed tokens (same in all themes)
 
   // Accent — orange ember
   accent:       "#ff6b35",
@@ -73,7 +73,7 @@ export const T = {
   bannerHeight: 68,   // DashboardHeader strip height
 };
 
-/* ── Severity palette (fixed) ──────────────────────────────────────── */
+/* Severity palette (fixed) */
 export const SEV = {
   CRITICAL: {
     bg:        "rgba(239,68,68,0.08)",
@@ -119,7 +119,7 @@ export const SEV = {
   },
 };
 
-/* ── Source brand colors (fixed) ────────────────────────────────────── */
+/* Source brand colors (fixed) */
 export const SRC_CLR = {
   osv:     "#ef4444",
   github:  "#8b5cf6",
@@ -138,7 +138,7 @@ export const SOURCE_META = {
   grafana: { icon: "◐", type: "Bundled",     label: "Grafana" },
 };
 
-/* ── Global keyframe CSS (injected once by App.jsx) ─────────────────── */
+/* Global keyframe CSS (injected once by App.jsx) */
 export const GLOBAL_STYLES = `
   @keyframes pulse-glow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3), 0 0 20px rgba(239,68,68,0.1); }

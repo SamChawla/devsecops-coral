@@ -203,10 +203,10 @@ export default function App() {
         animation: "theme-fade 0.25s ease",
       }}>
 
-        {/* ── Full-width banner ─────────────────────────────────── */}
+        {/* Full-width banner */}
         <DashboardHeader theme={theme} onToggleTheme={toggleTheme} />
 
-        {/* ── Sidebar + main ──────────────────────────────────────  */}
+        {/* Sidebar + main */}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
 
           {/* Fixed sidebar */}
@@ -335,7 +335,7 @@ export default function App() {
                 loading={loading}
               />
 
-              {/* ── Detect tab ──────────────────────────────────── */}
+              {/* Detect tab */}
               {tab === "detect" && (
                 <>
                   <ScanTable
@@ -357,7 +357,7 @@ export default function App() {
                 </>
               )}
 
-              {/* ── Actions tab ─────────────────────────────────── */}
+              {/* Actions tab */}
               {tab === "actions" && (
                 <>
                   <ActionsPanel
@@ -373,7 +373,7 @@ export default function App() {
                 </>
               )}
 
-              {/* ── Timeline tab ────────────────────────────────── */}
+              {/* Timeline tab */}
               {tab === "timeline" && (
                 <Timeline
                   rows={timelineRows}

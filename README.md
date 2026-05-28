@@ -179,10 +179,10 @@ GRAFANA_DASHBOARD_UID=your-uid
 
 ```
 DETECT (read)                     RECOMMEND            ACT (write, after approval)
-─────────────────────────────     ─────────────────    ──────────────────────────────
-Coral SQL cross-source JOINs  →   LLM agent        →   httpx REST calls
-OSV · GitHub · Jira · Sentry      analyzes gaps        Jira · GitHub · Grafana
-Grafana · (custom OSV source)     builds action list   Local Markdown report
+-----------------------------     -----------------    ------------------------------
+Coral SQL cross-source JOINs  ->  LLM agent        ->  httpx REST calls
+OSV + GitHub + Jira + Sentry      analyzes gaps        Jira + GitHub + Grafana
+Grafana + (custom OSV source)     builds action list   Local Markdown report
 ```
 
 **Key rule:** Coral is read-only. All writes go through `src/devsecops_coral/actions/` and require explicit approval.
@@ -191,23 +191,23 @@ Grafana · (custom OSV source)     builds action list   Local Markdown report
 
 ```
 src/devsecops_coral/
-├── cli.py              # scan, correlate, timeline, recommend, act, ask, serve
-├── api.py              # FastAPI — all REST endpoints
-├── recommender.py      # rule-based action recommendation engine
-├── agent.py            # LLM NL → SQL + analysis
-├── coral_client.py     # sole Coral CLI wrapper (read-only)
-├── actions/
-│   ├── executor.py     # in-memory store, approve/dismiss orchestration
-│   ├── jira.py         # POST /rest/api/3/issue
-│   ├── github.py       # branch + commit + PR creation
-│   ├── grafana.py      # POST /api/annotations
-│   └── report.py       # local Markdown export
-├── queries/
-│   ├── scan.py         # OSV × Jira × Sentry (untracked CVE detection)
-│   ├── correlate.py    # CVE × Sentry error spikes
-│   ├── timeline.py     # 4-source UNION ALL
-│   └── posture.py      # severity aggregation
-└── formatters/         # Rich terminal, JSON, Markdown output
++-- cli.py              # scan, correlate, timeline, recommend, act, ask, serve
++-- api.py              # FastAPI - all REST endpoints
++-- recommender.py      # rule-based action recommendation engine
++-- agent.py            # LLM NL -> SQL + analysis
++-- coral_client.py     # sole Coral CLI wrapper (read-only)
++-- actions/
+|   +-- executor.py     # in-memory store, approve/dismiss orchestration
+|   +-- jira.py         # POST /rest/api/3/issue
+|   +-- github.py       # branch + commit + PR creation
+|   +-- grafana.py      # POST /api/annotations
+|   +-- report.py       # local Markdown export
++-- queries/
+|   +-- scan.py         # OSV x Jira x Sentry (untracked CVE detection)
+|   +-- correlate.py    # CVE x Sentry error spikes
+|   +-- timeline.py     # 4-source UNION ALL
+|   +-- posture.py      # severity aggregation
++-- formatters/         # Rich terminal, JSON, Markdown output
 ```
 
 ---

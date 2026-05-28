@@ -38,7 +38,7 @@ def _status_for_scan(row: dict[str, Any]) -> str:
 def print_scan(rows: list[dict[str, Any]]) -> None:
     """Render security posture scan results."""
     console.print("\n[bold]🔍 Security Posture Scan[/bold]")
-    console.print("━" * 49)
+    console.print("-" * 49)
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("Package")
@@ -93,7 +93,7 @@ def print_scan(rows: list[dict[str, Any]]) -> None:
 def print_correlate(rows: list[dict[str, Any]], *, since: str) -> None:
     """Render vulnerability-error correlation results."""
     console.print(f"\n[bold]🔗 Vulnerability ↔ Error Correlation (Last {since})[/bold]")
-    console.print("━" * 49)
+    console.print("-" * 49)
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("CVE")
@@ -133,7 +133,7 @@ def print_correlate(rows: list[dict[str, Any]], *, since: str) -> None:
 def print_timeline(rows: list[dict[str, Any]], *, since: str) -> None:
     """Render unified security event timeline."""
     console.print(f"\n[bold]📅 Security Event Timeline (Last {since})[/bold]")
-    console.print("━" * 49)
+    console.print("-" * 49)
 
     if not rows:
         console.print("[dim]No events found in this time window.[/dim]")
@@ -153,7 +153,7 @@ def print_timeline(rows: list[dict[str, Any]], *, since: str) -> None:
         icon = source_icons.get(source, "⚪")
         title = str(row.get("title") or "—")
         detail = str(row.get("detail") or "")
-        line = f" {ts} │ {icon} {source:<8} │ {title}"
+        line = f" {ts} | {icon} {source:<8} | {title}"
         if detail:
             line += f" ({detail})"
         console.print(line)
@@ -183,7 +183,7 @@ def print_recommendations(actions: list[RecommendedAction]) -> None:
         actions: List of :class:`~devsecops_coral.models.RecommendedAction` objects.
     """
     console.print("\n[bold]🤖 Agent Recommended Actions[/bold]")
-    console.print("━" * 49)
+    console.print("-" * 49)
 
     if not actions:
         console.print("[dim]No recommendations — all vulnerabilities appear tracked.[/dim]")
