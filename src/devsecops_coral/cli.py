@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 from rich.console import Console
@@ -59,7 +59,8 @@ class OutputFormat(str, Enum):
     md = "md"
 
 
-def _handle_error(exc: Exception, *, debug: bool) -> None:
+def _handle_error(exc: Exception, *, debug: bool) -> NoReturn:
+    """Print a user-facing error and exit with code 1."""
     if debug:
         console.print_exception()
     else:
@@ -83,20 +84,29 @@ def main(
 @app.command()
 def scan(
     ecosystem: Annotated[str, typer.Option(help="Package ecosystem, e.g. PyPI, npm")] = "PyPI",
-    packages: Annotated[str, typer.Option(help="Comma-separated package names")] = "django,flask,requests",
-    fmt: Annotated[OutputFormat, typer.Option("--format", help="Output format")] = OutputFormat.rich,
+    packages: Annotated[
+        str, typer.Option(help="Comma-separated package names")
+    ] = "django,flask,requests",
+    fmt: Annotated[
+        OutputFormat, typer.Option("--format", help="Output format")
+    ] = OutputFormat.rich,
     debug: Annotated[bool, typer.Option("--debug", help="Show tracebacks and raw errors")] = False,
 ) -> None:
     """Run a security posture scan across OSV and Jira."""
     try:
         pkg_list = parse_packages(packages)
-        rows = run_scan(ecosystem=ecosystem, packages=pkg_list)
+        result = run_scan(ecosystem=ecosystem, packages=pkg_list)
+        rows = result.data
     except (CoralError, ValueError) as exc:
         _handle_error(exc, debug=debug)
-        return
+
+    if debug:
+        console.print(f"[dim]SQL:[/dim]\n{result.sql}\n")
 
     if fmt == OutputFormat.json:
-        sys.stdout.write(to_json({"command": "scan", "ecosystem": ecosystem, "rows": rows}))
+        sys.stdout.write(
+            to_json({"command": "scan", "ecosystem": ecosystem, "rows": rows, "sql": result.sql})
+        )
         return
     if fmt == OutputFormat.md:
         sys.stdout.write(scan_markdown(rows))
@@ -107,21 +117,30 @@ def scan(
 @app.command()
 def correlate(
     ecosystem: Annotated[str, typer.Option(help="Package ecosystem")] = "PyPI",
-    packages: Annotated[str, typer.Option(help="Comma-separated package names")] = "django,flask,requests",
+    packages: Annotated[
+        str, typer.Option(help="Comma-separated package names")
+    ] = "django,flask,requests",
     since: Annotated[str, typer.Option(help="Time window, e.g. 7d, 24h")] = "7d",
-    fmt: Annotated[OutputFormat, typer.Option("--format", help="Output format")] = OutputFormat.rich,
+    fmt: Annotated[
+        OutputFormat, typer.Option("--format", help="Output format")
+    ] = OutputFormat.rich,
     debug: Annotated[bool, typer.Option("--debug")] = False,
 ) -> None:
     """Correlate vulnerabilities with Sentry error spikes."""
     try:
         pkg_list = parse_packages(packages)
-        rows = run_correlate(ecosystem=ecosystem, packages=pkg_list, since=since)
+        result = run_correlate(ecosystem=ecosystem, packages=pkg_list, since=since)
+        rows = result.data
     except (CoralError, ValueError) as exc:
         _handle_error(exc, debug=debug)
-        return
+
+    if debug:
+        console.print(f"[dim]SQL:[/dim]\n{result.sql}\n")
 
     if fmt == OutputFormat.json:
-        sys.stdout.write(to_json({"command": "correlate", "since": since, "rows": rows}))
+        sys.stdout.write(
+            to_json({"command": "correlate", "since": since, "rows": rows, "sql": result.sql})
+        )
         return
     if fmt == OutputFormat.md:
         sys.stdout.write(correlate_markdown(rows, since=since))
@@ -140,18 +159,25 @@ def timeline(
         str | None,
         typer.Option("--github-repo", help="GitHub repo name (or set GITHUB_REPO)"),
     ] = None,
-    fmt: Annotated[OutputFormat, typer.Option("--format", help="Output format")] = OutputFormat.rich,
+    fmt: Annotated[
+        OutputFormat, typer.Option("--format", help="Output format")
+    ] = OutputFormat.rich,
     debug: Annotated[bool, typer.Option("--debug")] = False,
 ) -> None:
     """Build a unified security event timeline across sources."""
     try:
-        rows = run_timeline(since=since, owner=github_owner, repo=github_repo)
+        result = run_timeline(since=since, owner=github_owner, repo=github_repo)
+        rows = result.data
     except (CoralError, ValueError) as exc:
         _handle_error(exc, debug=debug)
-        return
+
+    if debug:
+        console.print(f"[dim]SQL:[/dim]\n{result.sql}\n")
 
     if fmt == OutputFormat.json:
-        sys.stdout.write(to_json({"command": "timeline", "since": since, "rows": rows}))
+        sys.stdout.write(
+            to_json({"command": "timeline", "since": since, "rows": rows, "sql": result.sql})
+        )
         return
     if fmt == OutputFormat.md:
         sys.stdout.write(timeline_markdown(rows, since=since))
@@ -162,7 +188,9 @@ def timeline(
 @app.command("ask")
 def ask_command(
     question: Annotated[str, typer.Argument(help="Natural language security question")],
-    fmt: Annotated[OutputFormat, typer.Option("--format", help="Output format")] = OutputFormat.rich,
+    fmt: Annotated[
+        OutputFormat, typer.Option("--format", help="Output format")
+    ] = OutputFormat.rich,
     debug: Annotated[bool, typer.Option("--debug", help="Show SQL and tracebacks")] = False,
 ) -> None:
     """Ask a natural language question (translated to Coral SQL via EURI)."""
@@ -170,7 +198,6 @@ def ask_command(
         result = run_agent_ask(question)
     except (AgentError, CoralError) as exc:
         _handle_error(exc, debug=debug)
-        return
 
     if debug:
         console.print(f"[dim]SQL:[/dim]\n{result['sql']}\n")
@@ -201,7 +228,9 @@ def integrations_list() -> None:
     """List available and planned integrations."""
     console.print("\n[bold]Integration Catalog[/bold]\n")
     for item in list_integrations():
-        kind_style = {"bundled": "green", "custom": "cyan", "planned": "dim"}.get(item.kind, "white")
+        kind_style = {"bundled": "green", "custom": "cyan", "planned": "dim"}.get(
+            item.kind, "white"
+        )
         spec = str(item.spec_path) if item.spec_path else "—"
         console.print(
             f"[{kind_style}]{item.kind:8}[/]  {item.name:<14}  {item.description}\n"
@@ -223,7 +252,6 @@ def integrations_add(
         integration = get_integration(name)
     except ValueError as exc:
         _handle_error(exc, debug=False)
-        return
 
     if integration.kind == "planned":
         err_console.print(
@@ -245,7 +273,6 @@ def integrations_add(
             add_bundled_source(integration.name, interactive=True)
     except CoralError as exc:
         _handle_error(exc, debug=False)
-        return
 
     console.print(f"[green]✓[/green] Integration '{name}' added. Verify with: coral source list")
 
@@ -281,6 +308,27 @@ def llm_status() -> None:
     console.print("  EURI:   https://euron.one/euri")
 
 
+@app.command("serve")
+def serve(
+    host: Annotated[str, typer.Option(help="Bind host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Bind port")] = 8000,
+) -> None:
+    """Launch the dashboard web server (FastAPI + built React frontend)."""
+    from devsecops_coral.config import project_root
+
+    dist = project_root() / "frontend" / "dist"
+    if not dist.is_dir():
+        console.print(
+            "[yellow]Warning:[/yellow] frontend/dist not found. "
+            "Run: cd frontend && npm install && npm run build"
+        )
+
+    import uvicorn
+
+    console.print(f"[green]Starting devsecops-coral dashboard at http://{host}:{port}[/green]")
+    uvicorn.run("devsecops_coral.api:app", host=host, port=port, reload=False)
+
+
 @integrations_app.command("status")
 def integrations_status() -> None:
     """Show connected Coral sources."""
@@ -288,7 +336,6 @@ def integrations_status() -> None:
         sources = list_sources()
     except CoralError as exc:
         _handle_error(exc, debug=False)
-        return
 
     if not sources:
         console.print("[dim]No sources configured. Run: devsecops-coral integrations add osv[/dim]")

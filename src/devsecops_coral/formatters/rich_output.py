@@ -15,12 +15,14 @@ console = Console()
 
 
 def _severity_style(severity: str | None) -> str:
+    """Return Rich markup style for a severity label."""
     if not severity:
         return "dim"
     return SEVERITY_COLORS.get(str(severity).upper(), "white")
 
 
 def _status_for_scan(row: dict[str, Any]) -> str:
+    """Return Rich markup for scan row tracking status (clean, tracked, or untracked)."""
     if not row.get("cve"):
         return "[green]✅ Clean[/green]"
     ticket = row.get("jira_ticket")
@@ -76,9 +78,7 @@ def print_scan(rows: list[dict[str, Any]]) -> None:
     console.print(table)
 
     if critical or high:
-        console.print(
-            f"\n[yellow]⚠ {critical} CRITICAL, {high} HIGH vulnerability found[/yellow]"
-        )
+        console.print(f"\n[yellow]⚠ {critical} CRITICAL, {high} HIGH vulnerability found[/yellow]")
     if untracked:
         console.print(
             f"[bold yellow]⚠ {untracked} vulnerability has NO tracking ticket[/bold yellow]"
