@@ -183,6 +183,7 @@ class PostureResponse(BaseModel):
     high: int = 0
     medium: int = 0
     low: int = 0
+    unknown: int = 0
     untracked: int = 0
     total: int = 0
     sql: str

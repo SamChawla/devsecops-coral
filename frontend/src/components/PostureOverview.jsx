@@ -10,6 +10,7 @@ const SEV_ENTRIES = [
   { key: "HIGH",     label: "High",     icon: "●", sublabel: "Prioritize" },
   { key: "MEDIUM",   label: "Medium",   icon: "◆", sublabel: "Schedule fix" },
   { key: "LOW",      label: "Low",      icon: "○", sublabel: "Monitor" },
+  { key: "UNKNOWN",  label: "Unknown",  icon: "?", sublabel: "Needs review" },
 ];
 
 /** Single severity counter card with optional critical alert styling. */
@@ -131,7 +132,7 @@ export default function PostureOverview({ posture, scanRows, loading, onRefresh 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* 4 KPI cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
         {SEV_ENTRIES.map(({ key, label, icon, sublabel }) => (
           <KpiCard
             key={key} sevKey={key} label={label} icon={icon} sublabel={sublabel}

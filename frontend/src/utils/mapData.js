@@ -109,13 +109,14 @@ export function postureFromApi(posture, scanRows) {
         HIGH: posture.high ?? 0,
         MEDIUM: posture.medium ?? 0,
         LOW: posture.low ?? 0,
+        UNKNOWN: posture.unknown ?? 0,
       },
       total: posture.total ?? 0,
       untracked: posture.untracked ?? 0,
     };
   }
   const mapped = mapScanRows(scanRows);
-  const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+  const counts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, UNKNOWN: 0 };
   mapped.forEach((row) => {
     if (counts[row.sev] !== undefined && row.id !== "-") counts[row.sev] += 1;
   });
