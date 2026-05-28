@@ -1,19 +1,21 @@
 # Product Requirements Document (PRD)
-# devsecops-coral — Cross-Stack Security Correlation Agent
+# devsecops-coral — Cross-Stack Security Operations Agent
 
-**Version:** 1.0  
+**Version:** 3.0  
 **Author:** Sumit Chawla (@sumit_sd)  
-**Date:** May 16, 2026  
+**Date:** May 27, 2026  
 **Hackathon:** Pirates of the Coral-bean (WeMakeDevs × Coral)  
 **Track:** Track 1 — Enterprise Agent  
 **Duration:** May 25–31, 2026 (7 days)  
 **Team Size:** Solo  
+**Dev Tools:** Claude Code + Cursor for AI-accelerated development  
+**UI Prototype:** `ui-prototype.jsx` (Detect → Actions → Timeline tabs)
 
 ---
 
 ## 1. Problem Statement
 
-Security and DevOps teams operate across fragmented tooling. When a vulnerability is discovered or an incident occurs, the first critical question — *"What else is happening across our stack?"* — requires manual cross-referencing across 4-6 different platforms:
+Security and DevOps teams operate across fragmented tooling. When a vulnerability is discovered or an incident occurs, the first critical question — *"What else is happening across our stack?"* — requires manual cross-referencing across 4–6 different platforms:
 
 - **Vulnerability databases** (OSV, NVD) report known CVEs
 - **Source control** (GitHub) tracks code changes and dependency updates
@@ -21,18 +23,23 @@ Security and DevOps teams operate across fragmented tooling. When a vulnerabilit
 - **Issue trackers** (Jira) manage security tickets and triage status
 - **Observability platforms** (Grafana) surface infrastructure anomalies
 
-Today, a senior security engineer spends 20-30 minutes per incident manually correlating these signals. Junior engineers frequently miss cross-platform connections entirely. There is no single query language or interface that spans all of these sources.
+Today, a senior security engineer spends 20–30 minutes per incident manually correlating these signals **and** another 20–30 minutes creating tickets, opening PRs, and updating dashboards. Junior engineers frequently miss cross-platform connections entirely. Existing tools either:
+
+1. **Read-only dashboards** — show pretty tables but leave remediation to the human
+2. **Expensive SOAR platforms** — automate response but require enterprise budgets and months of integration
+
+There is no lightweight agent that **detects** cross-source patterns via SQL, **recommends** remediation actions, and **executes** them with human approval.
 
 ### Who Feels This Pain
 
-- **Security Engineers / Analysts** — Need to correlate vulnerability reports with codebase impact
-- **DevOps / SRE Teams** — Need to assess whether a deploy introduced security regressions
-- **Engineering Leads** — Need security posture visibility across projects
-- **Compliance Teams** — Need audit trails connecting CVEs to remediation tickets
+- **Security Engineers / Analysts** — Need to correlate vulnerability reports with codebase impact and kick off remediation
+- **DevOps / SRE Teams** — Need to assess whether a deploy introduced security regressions and annotate timelines
+- **Engineering Leads** — Need security posture visibility and actionable next steps across projects
+- **Compliance Teams** — Need audit trails connecting CVEs to remediation tickets and PRs
 
 ### Current Workarounds
 
-1. Manual tab-switching across 4-6 dashboards
+1. Manual tab-switching across 4–6 dashboards, then manual ticket/PR creation
 2. Custom Python scripts with per-vendor API integrations (brittle, unmaintained)
 3. Expensive SOAR/SIEM platforms (Splunk, Datadog Security) — overkill for most teams
 4. Spreadsheet-based tracking (common in smaller teams)
@@ -41,427 +48,953 @@ Today, a senior security engineer spends 20-30 minutes per incident manually cor
 
 ## 2. Proposed Solution
 
-**devsecops-coral** is an AI-powered security correlation agent that uses Coral's SQL interface to query across vulnerability intelligence (OSV), source control (GitHub), error monitoring (Sentry), issue tracking (Jira), and observability (Grafana) — in a single SQL query, executed locally.
+**devsecops-coral** is an AI-powered **security operations agent** that completes the full workflow:
+
+```
+DETECT (Coral reads)  →  RECOMMEND (Agent analyzes)  →  ACT (Agent executes with approval)
+```
+
+| Phase | Powered By | What Happens |
+|---|---|---|
+| **DETECT** | Coral cross-source SQL JOINs | Reads OSV + GitHub + Sentry + Jira + Grafana in one query |
+| **RECOMMEND** | LLM Agent (Claude) | Analyzes gaps: untracked CVEs, active exploitation, missing PRs |
+| **ACT** | Direct API calls (`httpx`) | Creates Jira tickets, drafts GitHub PRs, annotates Grafana — **after human approval** |
 
 ### Core Value Proposition
 
-> Replace 30 minutes of manual cross-referencing with one SQL query that correlates security signals across your entire DevSecOps stack.
+> Replace 30 minutes of manual cross-referencing **and** 30 minutes of remediation busywork with one agent workflow: Coral detects, the agent recommends, you approve, the agent acts.
 
-### How Coral Enables This
+### The Agent Pattern (What Wins Track 1)
 
-Without Coral, building this requires:
-- 5 separate API integrations with auth, pagination, rate limiting
-- Custom join logic in Python to correlate data across sources
-- Token-heavy LLM tool calls (one per source)
-- Brittle glue code that breaks when APIs change
+This is **not** a dashboard. A dashboard reads and displays. An **agent** detects, reasons, recommends, and acts — with the human in the loop at the critical decision point. This human-in-the-loop approval pattern is exactly what won AgentHack.
 
-With Coral:
-- One SQL query JOINs all 5 sources
-- Auth, pagination, rate limiting handled by Coral
-- Data resolves inside Coral, not inside the LLM's context window
-- SQL is inspectable, debuggable, and cacheable
+**Tagline (footer, demo, judges):**
+
+> 🪸 coral reads → agent analyzes → human approves → agent acts
+
+### How Coral and Direct APIs Divide Labor
+
+| Operation | Path | Rationale |
+|---|---|---|
+| Read / correlate / JOIN | **Coral SQL** (MCP or CLI) | Coral's design: unified read layer across sources |
+| Write / create / update | **Direct REST APIs** via `httpx` | Coral is read-only; writes go to Jira, GitHub, Grafana APIs |
+| Reason / recommend | **LLM Agent** | Translates detection results into structured action plans |
+| Execute | **Action executor** (after approval) | Same tokens used for Coral source setup work for write ops |
+
+Without Coral, building DETECT alone requires 5 separate API integrations with auth, pagination, rate limiting, and custom join logic. With Coral, one SQL query JOINs all 5 sources. The ACT layer then uses the same credentials you already configured for those sources.
 
 ---
 
 ## 3. Target Users
 
-### Primary: Security-Aware Engineering Teams (5-50 engineers)
+### Primary: Security-Aware Engineering Teams (5–50 engineers)
 
-Teams that are too small for a dedicated SOC but too mature to ignore security. They use GitHub, Jira, Sentry, and possibly Grafana. They track CVEs but don't have automated correlation.
+Teams that are too small for a dedicated SOC but too mature to ignore security. They use GitHub, Jira, Sentry, and possibly Grafana. They track CVEs but don't have automated correlation **or** remediation.
 
 ### Secondary: Developer Security Champions
 
-Individual developers designated as security leads within their team. They need a quick way to check "are we exposed?" without deep security tooling expertise.
+Individual developers designated as security leads within their team. They need a quick way to check "are we exposed?" and approve fixes without deep security tooling expertise.
 
 ---
 
-## 4. Functional Requirements
+## 4. The Use Case (Demo Story for Judges)
 
-### FR-1: Coral Source Integration
+A security engineer starts their day. The agent has already scanned dependencies against OSV, correlated them with Sentry errors and GitHub deploys, and found gaps. They open the dashboard and see:
 
-| ID | Requirement | Source | Priority |
-|---|---|---|---|
-| FR-1.1 | Connect to GitHub and query PRs, commits, workflow runs, and Dependabot alerts | github (bundled) | P0 |
-| FR-1.2 | Connect to Jira Cloud and query issues filtered by security labels | jira (bundled) | P0 |
-| FR-1.3 | Connect to Sentry and query error events filtered by severity and time | sentry (bundled) | P0 |
-| FR-1.4 | Connect to Grafana Cloud and query alert rules and annotations | grafana (bundled) | P1 |
-| FR-1.5 | Build and register a custom OSV source spec for vulnerability data | osv (custom) | P0 |
-
-### FR-2: Core SQL Queries
-
-| ID | Requirement | Coral Feature Used | Priority |
-|---|---|---|---|
-| FR-2.1 | Correlate vulnerabilities (OSV) with merged PRs (GitHub) and security tickets (Jira) | Cross-source JOIN | P0 |
-| FR-2.2 | Detect "active exploitation" pattern: known CVE + error spike (Sentry) in same time window | Temporal JOIN | P0 |
-| FR-2.3 | Find untracked vulnerabilities: CVEs with no corresponding Jira ticket | LEFT JOIN with NULL check | P0 |
-| FR-2.4 | Build unified incident timeline from all sources for a time window | UNION ALL + ORDER BY | P1 |
-| FR-2.5 | Identify risky deploys: merged PRs that coincide with new threats or error spikes | Multi-source temporal JOIN | P1 |
-
-### FR-3: AI Agent Layer
-
-| ID | Requirement | Priority |
-|---|---|---|
-| FR-3.1 | Accept natural language security queries via CLI | P0 |
-| FR-3.2 | Translate natural language to parameterized Coral SQL | P0 |
-| FR-3.3 | Execute SQL via Coral MCP and parse results | P0 |
-| FR-3.4 | Generate human-readable security analysis from query results | P0 |
-| FR-3.5 | Support follow-up questions with context from previous queries | P2 |
-
-### FR-4: CLI Interface
-
-| ID | Requirement | Priority |
-|---|---|---|
-| FR-4.1 | `devsecops-coral scan` — Run security posture check across all sources | P0 |
-| FR-4.2 | `devsecops-coral correlate` — Correlate vulnerabilities with deploys and errors | P0 |
-| FR-4.3 | `devsecops-coral timeline --since 24h` — Build unified incident timeline | P1 |
-| FR-4.4 | `devsecops-coral ask "natural language query"` — Free-form agent query | P0 |
-| FR-4.5 | Rich terminal output with severity coloring (critical=red, high=orange, medium=yellow, low=green) | P0 |
-| FR-4.6 | `devsecops-coral setup` — Interactive source configuration wizard | P2 |
-
-### FR-5: Output Formats
-
-| ID | Requirement | Priority |
-|---|---|---|
-| FR-5.1 | Rich terminal tables with color-coded severity | P0 |
-| FR-5.2 | JSON output for piping to other tools (`--format json`) | P1 |
-| FR-5.3 | Markdown report export (`--format md`) | P2 |
-
----
-
-## 5. Non-Functional Requirements
-
-| ID | Requirement | Target |
-|---|---|---|
-| NFR-1 | All data stays local (Coral's security model) | No data leaves the machine |
-| NFR-2 | Query response time for single-source queries | < 5 seconds |
-| NFR-3 | Query response time for 5-source JOINs | < 15 seconds |
-| NFR-4 | Zero external dependencies beyond Coral + Python | No Docker, no databases |
-| NFR-5 | Works on macOS and Linux | Coral supports both |
-| NFR-6 | Python 3.10+ compatibility | Match Coral's requirements |
-
----
-
-## 6. OSV Custom Source Spec
-
-### Scope
-
-Build a Coral source spec that exposes the OSV (Open Source Vulnerabilities) database as SQL tables, enabling any Coral user or agent to query vulnerability data alongside their other data sources.
-
-### API Details
-
-| Aspect | Detail |
+| Finding | Signal |
 |---|---|
-| Base URL | `https://api.osv.dev` |
-| Auth | None (public API) |
-| Rate Limits | None currently |
-| Pagination | Cursor-based (`page_token` in response) |
-| Response Format | JSON |
+| 🔴 2 untracked CVEs | No Jira tickets exist for requests and pillow |
+| 🔴 1 potential active exploitation | Pillow CVE + 12 fatal Sentry errors in the same window |
+| 🟢 1 CVE already being fixed | Django has SEC-1 In Progress |
 
-### Tables
+The agent then **recommends 5 actions**:
 
-#### `osv.vulnerabilities`
+1. Create Jira ticket SEC-8 for requests CVE
+2. Create Jira ticket SEC-9 for pillow CVE (flagged urgent — active exploitation)
+3. Draft GitHub PR to upgrade pillow from 9.0.0 → 10.3.0
+4. Annotate Grafana timeline with "CVE remediation initiated"
+5. Generate security posture report for team review
 
-Queryable by package name, ecosystem, and version.
+The engineer clicks **Approve All** — the agent executes each action sequentially with real API calls. Done in 30 seconds instead of 30 minutes.
 
-| Column | Type | Source Field | Description |
+---
+
+## 5. Functional Requirements
+
+### FR-1: Coral Source Integration (DETECT foundation)
+
+| ID | Requirement | Source | Priority | Phase |
+|---|---|---|---|---|
+| FR-1.1 | Connect to GitHub and query PRs, commits, workflow runs | github (bundled) | P0 | 0 ✅ |
+| FR-1.2 | Connect to Jira Cloud and query issues filtered by security labels | jira (bundled) | P0 | 0 ✅ |
+| FR-1.3 | Connect to Sentry and query error events filtered by severity and time | sentry (bundled) | P0 | 0 ✅ |
+| FR-1.4 | Connect to Grafana Cloud and query alert rules and annotations | grafana (bundled) | P1 | 0 ✅ |
+| FR-1.5 | Build and register custom OSV source spec for vulnerability data | osv (custom) | P0 | 0 ✅ |
+
+### FR-2: Core SQL Queries (DETECT)
+
+| ID | Requirement | Coral Feature Used | Priority | Phase |
+|---|---|---|---|---|
+| FR-2.1 | Correlate vulnerabilities (OSV) with merged PRs (GitHub) and security tickets (Jira) | Cross-source JOIN | P0 | 0 ✅ |
+| FR-2.2 | Detect "active exploitation": known CVE + error spike (Sentry) in same time window | Temporal JOIN | P0 | 1 |
+| FR-2.3 | Find untracked vulnerabilities: CVEs with no corresponding Jira ticket | LEFT JOIN + NULL check | P0 | 1 |
+| FR-2.4 | Build unified incident timeline from all sources for a time window | UNION ALL + ORDER BY | P1 | 0 ✅ |
+| FR-2.5 | Aggregate posture: CRITICAL/HIGH/MED/LOW counts + untracked CVE count | Aggregation | P0 | 1 |
+
+### FR-3: Recommendation Engine (RECOMMEND)
+
+| ID | Requirement | Priority | Phase |
 |---|---|---|---|
-| id | STRING | `id` | OSV vulnerability ID (e.g., GHSA-xxx, PYSEC-xxx) |
-| summary | STRING | `summary` | Short description |
-| details | STRING | `details` | Full description (Markdown) |
-| aliases | STRING | `aliases[]` joined | CVE aliases (e.g., CVE-2024-XXXX) |
-| published | TIMESTAMP | `published` | Publication date |
-| modified | TIMESTAMP | `modified` | Last modified date |
-| severity | STRING | `database_specific.severity` or derived from CVSS | HIGH, MEDIUM, LOW, CRITICAL |
-| package_name | STRING | `affected[].package.name` | Affected package name |
-| ecosystem | STRING | `affected[].package.ecosystem` | Package ecosystem (PyPI, npm, Go, etc.) |
-| fixed_version | STRING | `affected[].ranges[].events[].fixed` | Version that fixes the vulnerability |
-| references | STRING | `references[].url` joined | Reference URLs |
+| FR-3.1 | Analyze scan + correlate results to identify remediation gaps | P0 | 2 |
+| FR-3.2 | Generate structured action recommendations (typed, with severity, CVE link) | P0 | 2 |
+| FR-3.3 | Flag urgent actions when active exploitation pattern detected | P0 | 2 |
+| FR-3.4 | Include human-readable rationale per recommended action | P0 | 2 |
+| FR-3.5 | Support rule-based recommendations as LLM fallback (no API key required for demo) | P1 | 2 |
+| FR-3.6 | Natural language queries that return detection + recommended actions | P0 | 2 |
 
-#### `osv.ecosystems`
+**Action types the recommender must produce:**
 
-Static reference table of supported ecosystems.
-
-| Column | Type | Description |
+| Type | Trigger | Output |
 |---|---|---|
-| name | STRING | Ecosystem name (PyPI, npm, Go, Maven, etc.) |
+| `create_jira` | Untracked HIGH/CRITICAL CVE | Jira issue with severity, labels, CVE references |
+| `create_pr` | CVE with known fixed version in OSV | PR updating `requirements.txt` |
+| `create_github_issue` | CVE needing visibility but no auto-fix | GitHub issue flagging vulnerable dependency |
+| `annotate_grafana` | Remediation workflow started | Timeline annotation |
+| `generate_report` | End of review session | Local Markdown security report |
 
-### Required Variables
+### FR-4: Action Executor (ACT — human-in-the-loop)
 
-```yaml
-variables: []
-# No variables needed — OSV is a public API with no authentication
+| ID | Requirement | API | Priority | Phase |
+|---|---|---|---|---|
+| FR-4.1 | Create Jira ticket | `POST /rest/api/3/issue` | P0 | 3 |
+| FR-4.2 | Open GitHub issue | GitHub REST API | P1 | 3 |
+| FR-4.3 | Draft GitHub PR (update requirements.txt) | GitHub REST API | P0 | 3 |
+| FR-4.4 | Annotate Grafana timeline | Grafana Annotations API | P1 | 3 |
+| FR-4.5 | Generate Markdown security report | Local file export | P0 | 3 |
+| FR-4.6 | All write actions require explicit user approval before execution | — | P0 | 3 |
+| FR-4.7 | Return execution result (ticket key, PR URL, annotation ID) per action | — | P0 | 3 |
+| FR-4.8 | Support approve-one, approve-all, and dismiss per action | — | P0 | 3 |
+| FR-4.9 | Never execute writes without approval — no auto-act | — | P0 | 3 |
+
+**Credentials:** Same env vars as Coral source setup (`JIRA_*`, `GITHUB_*`, `GRAFANA_*`). Tokens stored in `.env`, never committed.
+
+### FR-5: CLI Interface
+
+| ID | Requirement | Priority | Phase |
+|---|---|---|---|
+| FR-5.1 | `devsecops-coral scan` — security posture check | P0 | 0 ✅ |
+| FR-5.2 | `devsecops-coral correlate` — vulnerability ↔ error correlation | P0 | 0 ✅ |
+| FR-5.3 | `devsecops-coral timeline --since 24h` — unified event timeline | P1 | 0 ✅ |
+| FR-5.4 | `devsecops-coral ask "..."` — natural language agent query | P0 | 2 |
+| FR-5.5 | `devsecops-coral recommend` — show pending recommended actions | P0 | 2 |
+| FR-5.6 | `devsecops-coral act --approve <id>` / `--approve-all` — execute approved actions | P0 | 3 |
+| FR-5.7 | Rich terminal output with severity coloring | P0 | 0 ✅ |
+| FR-5.8 | `devsecops-coral serve` — launch dashboard web server | P0 | 0 ✅ |
+
+### FR-6: Web Dashboard (React)
+
+**Design rule:** Adopt **features and layout** from `ui-prototype.jsx`; keep **existing CoralSentinel styling** (`theme/tokens.js`, `ui/Primitives.jsx`, sidebar shell, dark/light theme). Do **not** replace the design system with the prototype's zinc palette or simplified single-column layout.
+
+| ID | Requirement | Priority | Phase |
+|---|---|---|---|
+| FR-6.1 | Three-tab navigation: **Detect** · **Actions** · **Timeline** (replaces Scan / Correlate / Timeline) | P0 | 4 |
+| FR-6.2 | Detect tab: CommandBar filters, scan table, correlation view, SQL viewer, query console | P0 | 4 |
+| FR-6.3 | Actions tab: `ActionsPanel` with Approve / Dismiss / Approve All | P0 | 4 |
+| FR-6.4 | Timeline tab: chronological events from all sources | P1 | 0 ✅ |
+| FR-6.5 | Source Status sidebar — 5 connected sources, connect/test/remove (keep current) | P0 | 0 ✅ |
+| FR-6.6 | Posture Overview — CRITICAL/HIGH/MED/LOW + untracked count (always visible above tabs) | P0 | 1 |
+| FR-6.7 | SQL Viewer — Detect tab: Coral JOIN SQL; Actions tab: DETECT SQL + ACT API comment block | P0 | 4 |
+| FR-6.8 | Query Console — NL + raw SQL toggle; analysis block + "Switch to Actions tab" link | P0 | 2 |
+| FR-6.9 | Footer tagline: "coral reads → agent analyzes → human approves → agent acts" | P0 | 4 |
+| FR-6.10 | Action cards: type badge (JIRA / GITHUB PR / GRAFANA / REPORT), severity, status | P0 | 4 |
+| FR-6.11 | Live execution feedback: pending → executing → done / dismissed | P0 | 4 |
+| FR-6.12 | Keep DashboardHeader, theme toggle, CommandBar, ActionButton primitives | P0 | 0 ✅ |
+| FR-6.13 | Approve button uses `ActionButton tone="accent"`; Dismiss uses default ghost style | P0 | 4 |
+| FR-6.14 | "Approve All (N)" in ActionsPanel header; "N completed" pill when done | P0 | 4 |
+| FR-6.15 | SqlViewer + QueryConsole hidden on Timeline tab; shown on Detect; SqlViewer only on Actions | P0 | 4 |
+
+### FR-7: FastAPI Backend
+
+| ID | Requirement | Priority | Phase |
+|---|---|---|---|
+| FR-7.1 | `GET /api/scan` — scan results + SQL | P0 | 0 ✅ |
+| FR-7.2 | `GET /api/correlate` — correlation data + SQL | P0 | 0 ✅ |
+| FR-7.3 | `GET /api/timeline` — timeline events + SQL | P1 | 0 ✅ |
+| FR-7.4 | `GET /api/posture` — severity counts + untracked count | P0 | 1 |
+| FR-7.5 | `GET /api/sources` — connected source status | P0 | 0 ✅ |
+| FR-7.6 | `POST /api/ask` — agent query → SQL + analysis + recommendations | P0 | 2 |
+| FR-7.7 | `GET /api/actions` — list recommended actions with status | P0 | 3 |
+| FR-7.8 | `POST /api/actions/{id}/approve` — approve and execute one action | P0 | 3 |
+| FR-7.9 | `POST /api/actions/approve-all` — approve and execute all pending | P0 | 3 |
+| FR-7.10 | `POST /api/actions/{id}/dismiss` — dismiss without executing | P0 | 3 |
+| FR-7.11 | `POST /api/recommend` — regenerate recommendations from current detection state | P0 | 2 |
+| FR-7.12 | All read endpoints return generated Coral SQL in response body | P0 | 0 ✅ |
+
+### FR-8: Output Formats
+
+| ID | Requirement | Priority | Phase |
+|---|---|---|---|
+| FR-8.1 | Rich terminal tables with color-coded severity | P0 | 0 ✅ |
+| FR-8.2 | JSON output (`--format json`) | P1 | 0 ✅ |
+| FR-8.3 | Markdown report export (via `generate_report` action) | P0 | 3 |
+
+### FR-9: Code Quality — Docstrings, Linting & Formatting
+
+All Python code in `src/devsecops_coral/` and `tests/` must meet these standards. **Every phase commit** must pass `ruff check` and `ruff format --check` before merge.
+
+| ID | Requirement | Tool / Standard | Priority | Phase |
+|---|---|---|---|---|
+| FR-9.1 | Docstrings on all **public** modules, classes, and functions | Google-style docstrings | P0 | 1+ |
+| FR-9.2 | Docstrings on Pydantic models — class docstring + field descriptions where non-obvious | `models.py`, action/recommend types | P0 | 2+ |
+| FR-9.3 | Docstrings on FastAPI route handlers — summary of behavior, params, and return shape | `api.py` | P0 | 1+ |
+| FR-9.4 | Docstrings on SQL query builders — describe query purpose and parameters | `queries/*.py` | P0 | 1+ |
+| FR-9.5 | Lint with **ruff** — no errors on touched files | `ruff check src/ tests/` | P0 | 1+ |
+| FR-9.6 | Format with **ruff** — consistent style across codebase | `ruff format src/ tests/` | P0 | 1+ |
+| FR-9.7 | Import sorting via ruff (`I` rules) | isort-compatible | P0 | 1+ |
+| FR-9.8 | Type hints on all function signatures (existing rule, enforced by review + ruff where applicable) | PEP 484 | P0 | 0 ✅ |
+| FR-9.9 | Backfill docstrings on existing modules when editing them in a phase | Boy Scout rule | P1 | 1–5 |
+| FR-9.10 | Full codebase passes `ruff check` with docstring rules before submission | `D` pydocstyle rules | P0 | 5 |
+
+**Docstring standard (Google convention):**
+
+```python
+def build_scan_query(ecosystem: str, packages: list[str]) -> str:
+    """Build a parameterized Coral SQL scan query.
+
+    Args:
+        ecosystem: Package ecosystem (e.g. ``PyPI``).
+        packages: Affected package names to include in the query.
+
+    Returns:
+        Parameterized SQL string ready for Coral execution.
+
+    Raises:
+        ValueError: If ecosystem is not alphabetic or packages list is empty.
+    """
 ```
 
-### Query Mapping
+**Required on:** `def`, `class`, and module-level docstrings for every file under `src/devsecops_coral/`.  
+**Optional on:** private helpers (`_prefixed`), test functions (one-line summary is enough), and `__init__.py` re-exports.
 
-| SQL Query Pattern | OSV API Call |
-|---|---|
-| `SELECT * FROM osv.vulnerabilities WHERE package_name = 'django' AND ecosystem = 'PyPI'` | `POST /v1/query {"package": {"name": "django", "ecosystem": "PyPI"}}` |
-| `SELECT * FROM osv.vulnerabilities WHERE id = 'GHSA-xxx'` | `GET /v1/vulns/GHSA-xxx` |
-| `SELECT * FROM osv.vulnerabilities WHERE package_name IN ('django', 'flask')` | `POST /v1/querybatch` with multiple queries |
+**Ruff commands (run before each phase commit):**
+
+```bash
+pip install -e ".[dev]"
+
+# Lint — must exit 0
+ruff check src/ tests/
+
+# Format — apply fixes
+ruff format src/ tests/
+
+# Verify formatting in CI / pre-commit (no writes)
+ruff format --check src/ tests/
+```
+
+**Configuration:** `pyproject.toml` → `[tool.ruff]`, `[tool.ruff.lint]`, `[tool.ruff.format]`, `[tool.ruff.lint.pydocstyle]`.
+
+**Phase gate:** No phase is complete until new/changed Python files in that phase have docstrings and pass ruff lint + format.
+
+---
+
+## 6. Implementation Phases
+
+Phases are designed for **incremental commits**. Each phase is independently demoable and builds on the previous one.
+
+**Cross-cutting (every phase):** New or modified Python files must include docstrings (FR-9) and pass `ruff check` + `ruff format --check` before the phase commit.
+
+### Phase 0 — Foundation (COMPLETE ✅)
+
+**Goal:** Coral reads 5 sources; dashboard displays detection data.
+
+**Deliverables:**
+- OSV custom source spec (linted, registered)
+- GitHub, Jira, Sentry, Grafana connected via Coral
+- Core queries: scan, correlate, timeline, posture
+- FastAPI backend with read endpoints
+- React dashboard: scan table, correlation view, timeline, query console, SQL viewer
+- CLI: `scan`, `correlate`, `timeline`, `serve`
+- Demo FastAPI app + seed scripts
+
+**Commit message pattern:** `feat: coral read layer — scan, correlate, timeline dashboard`
+
+**Status:** Built. This is the current codebase — a capable **data viewer**, not yet an agent.
+
+---
+
+### Phase 1 — DETECT Hardening
+
+**Goal:** Detection queries reliably surface the demo story (untracked CVEs, active exploitation, tracked fixes).
+
+**Backend:**
+- [ ] Refine `queries/scan.py` — untracked CVE detection via LEFT JOIN on Jira (NULL ticket)
+- [ ] Refine `queries/correlate.py` — temporal window for Sentry error spikes
+- [ ] Add `queries/untracked.py` or extend scan with explicit untracked filter
+- [ ] Posture endpoint returns `untracked_count` alongside severity buckets
+- [ ] Demo seed data aligned to prototype: django (SEC-1 In Progress), requests + pillow (untracked), pillow (12 errors)
+
+**Frontend:**
+- [ ] Posture card shows untracked count with orange highlight when > 0
+- [ ] Scan table highlights UNTRACKED rows; error column bold when > 10
+
+**Demo scenarios:**
+- [ ] `demo/scenarios/untracked_cves.md` — requests + pillow untracked
+- [ ] `demo/scenarios/active_exploitation.md` — pillow + 12 Sentry errors
+
+**Acceptance criteria:**
+```bash
+devsecops-coral scan --ecosystem PyPI --packages django,requests,pillow,celery
+# Shows: django → SEC-1 In Progress; requests, pillow → UNTRACKED; pillow → 12 errors
+
+ruff check src/ tests/ && ruff format --check src/ tests/
+# Must pass on all touched files
+```
+
+**Code quality:**
+- [ ] Docstrings on modified query builders and API handlers touched in this phase
+- [ ] `ruff check` + `ruff format` clean on changed files
+
+**Commit message:** `feat(detect): untracked CVE queries and posture untracked count`
+
+**Estimated effort:** 3–4 hours
+
+---
+
+### Phase 2 — RECOMMEND (Agent Analysis Layer)
+
+**Goal:** Agent analyzes detection results and produces structured, typed action recommendations.
+
+**Backend:**
+- [ ] New module: `src/devsecops_coral/recommender.py`
+  - Input: scan + correlate + posture results
+  - Output: list of `RecommendedAction` objects (Pydantic model)
+  - Rule-based engine first (deterministic, demo-safe):
+    - Untracked HIGH/CRITICAL → `create_jira`
+    - Untracked + active exploitation → `create_jira` (urgent flag)
+    - CVE with `fixed_version` in OSV → `create_pr`
+    - Any remediation started → `annotate_grafana`
+    - Always → `generate_report`
+  - LLM enhancement: Claude analyzes gaps and enriches rationale text
+- [ ] Extend `agent.py` — NL queries return detection + recommendations
+- [ ] `GET /api/recommend` — regenerate from current state
+- [ ] Extend `POST /api/ask` — response includes `recommendations[]`
+- [ ] Pydantic models: `RecommendedAction`, `ActionType`, `ActionStatus` (pending only at this phase)
+
+**CLI:**
+- [ ] `devsecops-coral recommend` — print recommended actions table
+
+**Frontend:**
+- [ ] Query console shows "Agent Analysis + Recommended Actions" block (prototype pattern)
+- [ ] Link text: "Switch to Actions tab to review and approve"
+
+**Acceptance criteria:**
+```bash
+devsecops-coral recommend
+# Lists 5 pending actions matching prototype ACTIONS_DATA
+
+ruff check src/devsecops_coral/recommender.py src/devsecops_coral/agent.py
+# Zero errors; new modules have Google docstrings
+```
+
+**Commit message:** `feat(recommend): agent recommendation engine from detection results`
+
+**Estimated effort:** 4–5 hours
+
+---
+
+### Phase 3 — ACT (Action Executor with Approval)
+
+**Goal:** Approved actions execute via direct REST APIs. Human-in-the-loop is mandatory.
+
+**Backend:**
+- [ ] New module: `src/devsecops_coral/actions/` (keep files under 200 lines each)
+  - `jira.py` — `create_issue(summary, description, priority, labels)` → ticket key
+  - `github.py` — `create_pull_request(branch, title, body, file_changes)` → PR URL
+  - `github.py` — `create_issue(title, body, labels)` → issue URL (P1)
+  - `grafana.py` — `create_annotation(text, tags, time)` → annotation ID
+  - `report.py` — `generate_markdown(findings)` → file path
+  - `executor.py` — orchestrates approve/dismiss/approve-all; updates action status
+- [ ] In-memory action store (session-scoped; no DB needed for hackathon)
+- [ ] Config: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`
+- [ ] Config: `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`
+- [ ] Config: `GRAFANA_URL`, `GRAFANA_API_KEY`, `GRAFANA_DASHBOARD_UID`
+- [ ] API endpoints: approve, approve-all, dismiss (FR-7.7–7.10)
+- [ ] Return execution results: `{ "ticket": "SEC-9", "url": "..." }`
+
+**CLI:**
+- [ ] `devsecops-coral act --approve 2`
+- [ ] `devsecops-coral act --approve-all`
+- [ ] `devsecops-coral act --list`
+
+**Tests:**
+- [ ] Mock httpx at action module level (not HTTP layer)
+- [ ] Test each action type with fixture responses
+- [ ] Test approval gate — unapproved actions never execute
+
+**Acceptance criteria:**
+```bash
+devsecops-coral recommend
+devsecops-coral act --approve 2
+# Output: ✓ Created Jira SEC-9 for GHSA-ppf2-m228 (pillow)
+
+ruff check src/devsecops_coral/actions/
+# All action modules documented and lint-clean
+```
+
+**Commit message:** `feat(act): human-approved action executor — Jira, GitHub PR, Grafana, report`
+
+**Estimated effort:** 6–8 hours
+
+---
+
+### Phase 4 — Dashboard Agent UX
+
+**Goal:** Port prototype **features** into the existing CoralSentinel shell — not a visual redesign.
+
+**Styling (unchanged):**
+- `theme/tokens.js` — orange accent, SEV colors, sidebar width, frosted header
+- `ui/Primitives.jsx` — `Card`, `CardHeader`, `ActionButton`, `Badge`, `Pill`
+- Sidebar + `DashboardHeader` + dark/light theme toggle
+- `CommandBar` for ecosystem / packages / since filters
+
+**Layout changes (from prototype):**
+
+| Area | Current | Target |
+|---|---|---|
+| Tabs | Scan · Correlate · Timeline | **Detect** · **Actions** · **Timeline** |
+| Detect tab content | ScanTable only | ScanTable + CorrelationView (stacked) |
+| Actions tab | — | **ActionsPanel** (new) + SqlViewer |
+| Timeline tab | Timeline + SqlViewer + QueryConsole always visible | Timeline only |
+| SqlViewer / QueryConsole | Always at bottom | Detect: both; Actions: SqlViewer only; Timeline: neither |
+| Footer | Sidebar "hackathon · 2026" only | Main footer with agent tagline |
+
+**New component: `ActionsPanel.jsx`** (prototype behavior, production styling):
+- [ ] Card with accent glow when pending actions exist (reuse `Card accent={T.accent}`)
+- [ ] Header: "Recommended Actions" + `{doneCount} completed` Pill + **Approve All (N)** `ActionButton`
+- [ ] Action row per recommendation:
+  - Type icon + `Pill` badge: JIRA · GITHUB PR · GRAFANA · REPORT
+  - `Badge` for severity (skip for INFO actions)
+  - Title (13px semibold) + detail text (12px secondary)
+  - Status line: `⟳ Executing...` (accent mono) or `✓ Executed` (green)
+  - Pending only: **Approve** (`ActionButton tone="accent"`) + **Dismiss** (ghost)
+- [ ] Row background shifts by status: pending → executing (accent tint) → done (green tint) → dismissed (40% opacity)
+- [ ] Wire to `/api/actions`, `/api/recommend`, approve / approve-all / dismiss
+
+**Detect tab refinements:**
+- [ ] Keep `PostureOverview` + `CommandBar` above tab content (always visible)
+- [ ] Stack `ScanTable` then `CorrelationView` (replaces separate Correlate tab)
+- [ ] Bottom grid: `SqlViewer` | `QueryConsole` (2-column, existing gap/spacing)
+
+**QueryConsole extension (Phase 2 backend, Phase 4 UI):**
+- [ ] When `result.analysis` or `result.recommendations` present, show green-bordered block:
+  - Label: "Agent Analysis + Recommended Actions"
+  - Body: analysis text
+  - Link/button: "Review in Actions tab →" (switches tab)
+
+**SqlViewer on Actions tab:**
+- [ ] Show last DETECT SQL + commented ACT block (from prototype `SQL_EXAMPLES.act` pattern):
+  ```
+  -- The agent then ACTS via direct API calls:
+  -- 1. POST /rest/api/3/issue → Create Jira SEC-8
+  -- ...
+  -- All actions require human approval first.
+  ```
+
+**App.jsx changes:**
+- [ ] Update `TABS` constant: `{ id: "detect", label: "Detect", desc: "Scan & Correlate" }`, etc.
+- [ ] Tab bar keeps current sticky header styling (bottom border accent, mono icon)
+- [ ] Add main-area footer below `<main>` with tagline in `T.mono` 11px
+- [ ] `useApi.js`: `getActions`, `getRecommend`, `approveAction`, `approveAllActions`, `dismissAction`
+
+**Acceptance criteria:**
+- Visual regression: dashboard still looks like CoralSentinel (sidebar, header, tokens)
+- Click Actions tab → 5 pending recommendations with Approve / Dismiss
+- Click Approve on pillow Jira → "Executing..." → "✓ Executed"
+- Approve All cascades with staggered completion (prototype timing OK for demo)
+- Footer: `coral reads → agent analyzes → human approves → agent acts`
+
+**Commit message:** `feat(ui): Actions tab with approve/dismiss — agent workflow dashboard`
+
+**Estimated effort:** 5–6 hours
+
+---
+
+### Phase 5 — Demo Polish & Submission
+
+**Goal:** 3-minute demo script, docs, video, blog — submission-ready.
+
+**Deliverables:**
+- [ ] End-to-end demo script (see Section 10)
+- [ ] `docs/TESTING.md` — add action approval test steps + ruff commands
+- [ ] `SHOWCASE.md` — update narrative for agent workflow
+- [ ] README — lead with DETECT → RECOMMEND → ACT, not "dashboard"
+- [ ] **Backfill docstrings** on all remaining `src/devsecops_coral/` modules
+- [ ] **Full ruff pass:** `ruff check src/ tests/` and `ruff format src/ tests/`
+- [ ] Record 3–5 minute demo video
+- [ ] Medium blog post
+- [ ] Discord showcase + social posts
+- [ ] OSV source spec submitted to Coral repo (bounty)
+
+**Acceptance criteria:** Full demo runs in under 3 minutes without manual API calls.
+
+**Commit message:** `docs: demo script and submission materials for agent workflow`
+
+**Estimated effort:** 4–5 hours
+
+---
+
+### Phase Summary
+
+| Phase | Name | Key Deliverable | Demoable As |
+|---|---|---|---|
+| **0** ✅ | Foundation | Coral reads + dashboard | "Here's what Coral found" |
+| **1** | DETECT Hardening | Untracked CVEs + active exploitation queries | "2 untracked, 1 active exploitation" |
+| **2** | RECOMMEND | Agent recommendation engine | "Agent recommends 5 actions" |
+| **3** | ACT | Approved API execution | "SEC-9 created in Jira" |
+| **4** | Dashboard UX | Actions tab + approve flow | Full agent workflow in UI |
+| **5** | Demo Polish | Video, blog, submission | 3-minute judge demo |
+
+**Total estimated effort (Phases 1–5):** ~22–28 hours
 
 ---
 
 ## 7. Technical Architecture
 
-### System Components
+### Read vs Write Paths
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                        CLI Layer                          │
-│  (Python + Rich + Typer/Click)                           │
-│                                                           │
-│  Commands: scan | correlate | timeline | ask              │
-└─────────────────────────┬────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│                      Agent Layer                          │
-│  (LLM via Anthropic/OpenAI API)                          │
-│                                                           │
-│  - Intent parsing                                         │
-│  - SQL template selection + parameterization              │
-│  - Result analysis + natural language generation          │
-└─────────────────────────┬────────────────────────────────┘
-                          │
-                          ▼
-┌──────────────────────────────────────────────────────────┐
-│                    Coral Runtime                           │
-│  (via MCP or CLI subprocess)                              │
-│                                                           │
-│  ┌─────────┐ ┌────────┐ ┌────────┐ ┌───────┐ ┌────────┐ │
-│  │   OSV   │ │ GitHub │ │  Jira  │ │Sentry │ │Grafana │ │
-│  │(custom) │ │(bundled)│ │(bundled)│ │(bundled)│ │(bundled)│ │
-│  └─────────┘ └────────┘ └────────┘ └───────┘ └────────┘ │
-│                                                           │
-│  Cross-source JOINs, caching, schema discovery            │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     React Dashboard                              │
+│   Detect Tab          Actions Tab           Timeline Tab         │
+│   scan + correlate    approve/dismiss       events only          │
+└────────────┬──────────────────┬──────────────────────────────────┘
+             │ REST              │ REST
+┌────────────▼──────────────────▼──────────────────────────────────┐
+│                     FastAPI Backend                               │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐ │
+│  │ Query Engine │  │ Recommender  │  │ Action Executor       │ │
+│  │ (read only)  │  │ (LLM + rules)│  │ (write, after approve)│ │
+│  └──────┬───────┘  └──────┬───────┘  └───────────┬───────────┘ │
+│         │                 │                       │              │
+│  ┌──────▼───────┐  ┌──────▼───────┐  ┌───────────▼───────────┐ │
+│  │ coral_client │  │ agent.py     │  │ actions/              │ │
+│  │ .py          │  │              │  │ jira · github · grafana│ │
+│  └──────┬───────┘  └──────────────┘  └───────────┬───────────┘ │
+└─────────┼─────────────────────────────────────────┼────────────┘
+          │ Coral MCP / CLI                           │ httpx REST
+          ▼                                           ▼
+┌─────────────────────┐              ┌────────────────────────────┐
+│   Coral Runtime     │              │  Direct Source APIs        │
+│   (READ ONLY)       │              │  (WRITE after approval)    │
+│  OSV · GitHub ·     │              │  Jira REST · GitHub REST · │
+│  Jira · Sentry ·    │              │  Grafana Annotations API   │
+│  Grafana            │              └────────────────────────────┘
+└─────────────────────┘
+```
+
+### Updated Project Structure (Phases 2–3 additions)
+
+```
+src/devsecops_coral/
+├── api.py                    # + /api/actions, /api/recommend endpoints
+├── models.py                 # + RecommendedAction, ActionResult models
+├── agent.py                  # Extended: NL → detect + recommend
+├── recommender.py            # NEW Phase 2: detection → action list
+├── coral_client.py           # READ ONLY — unchanged rule
+├── actions/                  # NEW Phase 3
+│   ├── __init__.py
+│   ├── executor.py           # Approve/dismiss orchestration
+│   ├── jira.py               # POST /rest/api/3/issue
+│   ├── github.py             # PR + issue creation
+│   ├── grafana.py            # Annotation API
+│   └── report.py             # Local Markdown export
+├── queries/
+│   ├── scan.py
+│   ├── correlate.py
+│   ├── timeline.py
+│   └── posture.py
+└── config.py                 # + JIRA_*, GITHUB_*, GRAFANA_* write creds
+
+frontend/src/components/
+├── ActionsPanel.jsx          # NEW Phase 4 — from ui-prototype.jsx
+├── ScanTable.jsx
+├── PostureOverview.jsx
+├── Timeline.jsx
+├── QueryConsole.jsx
+├── SqlViewer.jsx
+└── SourceStatus.jsx
+```
+
+### Action Data Model
+
+```python
+class ActionType(str, Enum):
+    CREATE_JIRA = "create_jira"
+    CREATE_PR = "create_pr"
+    CREATE_GITHUB_ISSUE = "create_github_issue"
+    ANNOTATE_GRAFANA = "annotate_grafana"
+    GENERATE_REPORT = "generate_report"
+
+class ActionStatus(str, Enum):
+    PENDING = "pending"
+    EXECUTING = "executing"
+    DONE = "done"
+    DISMISSED = "dismissed"
+    FAILED = "failed"
+
+class RecommendedAction(BaseModel):
+    id: int
+    type: ActionType
+    status: ActionStatus
+    title: str
+    detail: str
+    cve: str | None
+    package: str | None
+    severity: str
+    urgent: bool = False
+    result: dict | None = None  # Populated after execution
 ```
 
 ### Tech Stack
 
 | Layer | Technology | Rationale |
 |---|---|---|
-| Language | Python 3.10+ | Primary skill; Coral MCP SDK available |
-| CLI Framework | Typer + Rich | Modern Python CLI with beautiful output |
-| LLM Integration | Anthropic Claude API or OpenAI | Agent reasoning for natural language queries |
-| Coral Integration | Coral MCP (primary) or CLI subprocess (fallback) | Cross-source SQL execution |
-| Testing | pytest | Standard Python testing |
-| Packaging | pyproject.toml + pip | Standard Python packaging |
+| **Frontend** | React + Vite (inline styles) | CoralSentinel tokens + prototype workflow features |
+| **Backend API** | FastAPI | Shared query + recommend + act engine |
+| **CLI** | Typer + Rich | Power-user approve/act from terminal |
+| **LLM Agent** | Anthropic Claude API | NL → SQL + recommendation rationale |
+| **Coral Integration** | MCP (primary) / CLI subprocess (fallback) | Cross-source READ |
+| **Write APIs** | httpx | Jira, GitHub, Grafana WRITE (after approval) |
+| **Testing** | pytest + httpx mock | Mock at coral_client and actions module level |
 
-### Project Structure
+### Coral Features Showcased
 
-```
-devsecops-coral/
-├── README.md
-├── CLAUDE.md                    # Guardrails for Claude Code
-├── pyproject.toml               # Package config
-├── LICENSE                      # Apache 2.0
-│
-├── sources/
-│   └── osv/
-│       ├── osv.yaml             # OSV Coral source spec
-│       └── README.md            # Source spec documentation
-│
-├── src/
-│   └── devsecops_coral/
-│       ├── __init__.py
-│       ├── cli.py               # Typer CLI commands
-│       ├── agent.py             # LLM agent (intent → SQL → analysis)
-│       ├── coral_client.py      # Coral MCP/CLI integration
-│       ├── queries/
-│       │   ├── __init__.py
-│       │   ├── correlate.py     # Vulnerability-deploy correlation queries
-│       │   ├── scan.py          # Security posture scan queries
-│       │   └── timeline.py      # Incident timeline queries
-│       ├── formatters/
-│       │   ├── __init__.py
-│       │   ├── rich_output.py   # Rich terminal tables + colors
-│       │   ├── json_output.py   # JSON export
-│       │   └── markdown_output.py  # Markdown report
-│       └── config.py            # Configuration management
-│
-├── tests/
-│   ├── test_queries.py
-│   ├── test_agent.py
-│   ├── test_formatters.py
-│   └── fixtures/                # Mock API responses for testing
-│       ├── osv_response.json
-│       ├── github_pulls.json
-│       ├── sentry_issues.json
-│       └── jira_issues.json
-│
-├── demo/
-│   ├── seed_data.py             # Script to seed test data across all sources
-│   ├── fastapi_app/             # Vulnerable FastAPI app for Sentry data
-│   │   ├── main.py
-│   │   └── requirements.txt     # Intentionally vulnerable deps
-│   └── scenarios/               # Pre-built demo scenarios
-│       ├── active_exploitation.md
-│       └── untracked_cves.md
-│
-├── docs/
-│   ├── SETUP.md                 # Source configuration guide
-│   ├── QUERIES.md               # SQL query reference
-│   └── ARCHITECTURE.md          # System architecture
-│
-└── blog/
-    └── building-devsecops-coral.md  # Medium blog post draft
-```
+| Coral Feature | Where Demonstrated |
+|---|---|
+| **SQL Interface** | Every DETECT query |
+| **Cross-source JOINs** | Scan + correlate (5 sources) |
+| **Schema Learning** | Source status panel |
+| **Caching** | Repeat queries return instantly |
+| **MCP Integration** | Agent + dashboard MCP status |
+| **Custom Source Spec** | OSV bounty submission |
+
+| Agent Feature | Where Demonstrated |
+|---|---|
+| **Reasoning** | Recommender analyzes gaps |
+| **Human-in-the-loop** | Approve / Dismiss / Approve All |
+| **Multi-step workflow** | Detect → Recommend → Act |
+| **Transparency** | SQL viewer + action API summary |
 
 ---
 
-## 8. Data Seeding Plan
+## 8. OSV Custom Source Spec
 
-All data is real, generated from individual free-tier accounts.
+*(Unchanged from v2.0 — see `sources/osv/osv.yaml`)*
+
+Build a Coral source spec exposing OSV as SQL tables. Required for DETECT phase. Submitted separately for Coral bounty.
+
+Key tables/functions:
+- `osv.search_vulnerabilities(package => '...', ecosystem => 'PyPI')` — search function
+- `osv.vulnerability_detail` — detail lookup by ID
+
+---
+
+## 9. Data Seeding Plan
+
+All data is real, from individual free-tier accounts. Seeding must support the **demo story**:
+
+| Package | CVE Severity | Jira Ticket | Sentry Errors | Demo Role |
+|---|---|---|---|---|
+| django | CRITICAL | SEC-1 (In Progress) | 47 | Already being fixed |
+| requests | HIGH | — (untracked) | 3 | Untracked CVE |
+| pillow | HIGH | — (untracked) | 12 | Active exploitation |
+| celery | MEDIUM | SEC-4 (Open) | 0 | Tracked, lower priority |
+| jinja2 | MEDIUM | SEC-5 (Done) | 0 | Resolved |
 
 ### GitHub
 
-1. Create public repo `coral-signal-seed` with intentionally vulnerable `requirements.txt`
-2. Dependabot auto-creates alerts and PRs
-3. Create manual PRs simulating "fix: upgrade django to 4.2.x"
-4. Enable GitHub Actions with a simple CI workflow (to have workflow_runs data)
-5. Create issues tagged with security labels
+1. Public repo `devsecops-demo` with intentionally vulnerable `requirements.txt` (`pillow==9.0.0`)
+2. Dependabot alerts enabled
+3. Manual PRs simulating dependency upgrades
+4. GitHub Actions CI workflow
 
 ### Sentry
 
-1. Free signup at sentry.io
-2. Create project "coral-signal-seed"
-3. Deploy FastAPI app with `sentry-sdk[fastapi]` installed
-4. Generate real errors by hitting endpoints that raise exceptions
-5. Errors will have realistic stack traces, timestamps, and frequency data
+1. Free project "devsecops-demo"
+2. FastAPI demo app generates real errors (pillow-related endpoints for exploitation scenario)
+3. Seed script: `scripts/seed_sentry_errors.ps1`
 
 ### Jira Cloud
 
-1. Free signup at atlassian.com
-2. Create project "SEC" (Security)
-3. Create 5-8 realistic issues:
-   - SEC-1: "CVE-2024-XXXX: Django < 4.2 SQL injection" [labels: security, critical]
-   - SEC-2: "Upgrade requests library — known SSRF" [labels: security, high]
-   - SEC-3: "Investigate Sentry error spike on /api/process" [labels: security, triage]
-   - SEC-4: "Quarterly dependency audit Q2 2026" [labels: security, maintenance]
-   - SEC-5: "Implement CSP headers on dashboard" [labels: security, medium]
-4. Vary statuses: Open, In Progress, Done (realistic distribution)
+1. Project "SEC" with tickets SEC-1 through SEC-5 (see table above)
+2. **Do not** pre-create tickets for requests or pillow — agent will create SEC-8, SEC-9 on approval
 
 ### Grafana Cloud
 
-1. Free signup at grafana.com
-2. Create alert rule: "Error rate > threshold"
-3. Add deployment annotations with timestamps matching GitHub PR merges
+1. Alert rules + deployment annotations
+2. Dashboard UID in config for annotation API
 
 ### OSV
 
-No seeding needed — real vulnerability data from the public API.
+No seeding — real vulnerability data from public API.
 
 ---
 
-## 9. Demo Scenarios
+## 10. Demo Script (3 Minutes for Judges)
 
-### Scenario 1: "Are we vulnerable?"
+```
+[0:00] Open dashboard → Detect tab
+       "Here's what the agent found this morning"
+       → Show posture: 1 CRITICAL, 2 HIGH, 2 untracked
+       → Show scan table: pillow with 12 errors, no ticket
 
-```bash
-$ devsecops-coral scan --ecosystem PyPI --packages django,flask,requests,celery
+[0:45] Switch to Actions tab
+       "The agent recommends 5 actions based on the correlation"
+       → Show pending actions: Jira tickets, GitHub PR, Grafana annotation, report
 
-🔍 Security Posture Scan
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[1:15] Click Approve on pillow Jira ticket
+       → Watch status: Executing... → ✓ Executed
+       → "SEC-9 created in Jira"
 
- Package    │ CVE            │ Severity │ Jira Ticket │ Status
-────────────┼────────────────┼──────────┼─────────────┼────────
- django     │ GHSA-xxx-xxx   │ CRITICAL │ SEC-1       │ In Progress
- requests   │ GHSA-yyy-yyy   │ HIGH     │ —           │ ⚠ UNTRACKED
- flask      │ —              │ —        │ —           │ ✅ Clean
- celery     │ GHSA-zzz-zzz  │ MEDIUM   │ SEC-4       │ Open
+[1:45] Click Approve on GitHub PR
+       → "PR #45 opened: upgrade pillow to 10.3.0"
 
-⚠ 1 CRITICAL, 1 HIGH vulnerability found
-⚠ 1 vulnerability has NO tracking ticket — action needed
+[2:00] Click Approve All for remaining actions
+       → Watch cascade: Grafana annotation → report generated
+
+[2:30] Show SQL on Actions tab
+       "Here's what Coral did under the hood — one SQL query joining 5 sources"
+       → Point to DETECT SQL + ACT API comments
+
+[2:45] Query console: "Are there any other untracked vulnerabilities?"
+       → Agent generates SQL, responds with analysis + recommendations
+
+[3:00] Footer: "coral reads → agent analyzes → human approves → agent acts"
 ```
 
-### Scenario 2: "Is this being actively exploited?"
+### CLI Demo (backup if UI fails)
 
 ```bash
-$ devsecops-coral correlate --since 7d
-
-🔗 Vulnerability ↔ Error Correlation (Last 7 Days)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
- CVE            │ Package  │ Severity │ Error Count │ Error Level │ Signal
-────────────────┼──────────┼──────────┼─────────────┼─────────────┼────────
- GHSA-xxx-xxx   │ django   │ CRITICAL │ 47          │ fatal       │ 🔴 ACTIVE
- GHSA-yyy-yyy   │ requests │ HIGH     │ 3           │ error       │ 🟡 MONITOR
-
-🔴 1 potential active exploitation detected
-   GHSA-xxx-xxx (Django) + 47 fatal errors in matching time window
-   Recommended: Investigate SEC-1 immediately
-```
-
-### Scenario 3: "Build me a timeline of today's events"
-
-```bash
-$ devsecops-coral timeline --since 24h
-
-📅 Security Event Timeline (Last 24 Hours)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
- 09:15 │ 🔴 osv     │ GHSA-xxx-xxx published (Django CRITICAL)
- 10:30 │ 🟢 github  │ PR #42 merged: "fix: upgrade django to 4.2.11" by @samchawla
- 10:45 │ 🟡 sentry  │ JSONDecodeError spike on /api/process (12 events)
- 11:00 │ 🔵 jira    │ SEC-1 created: "CVE-2024-XXXX: Django SQL injection" [Critical]
- 11:15 │ 🟡 sentry  │ Error rate normalized
- 14:00 │ 🔵 jira    │ SEC-1 moved to "In Progress"
- 16:30 │ 🟢 github  │ PR #43 opened: "fix: patch celery to 5.3.6" by @samchawla
+devsecops-coral scan --ecosystem PyPI --packages django,requests,pillow
+devsecops-coral correlate --since 7d
+devsecops-coral recommend
+devsecops-coral act --approve 2
+devsecops-coral act --approve-all
 ```
 
 ---
 
-## 10. Success Criteria
+## 11. Success Criteria
 
 ### Hackathon Submission Checklist
 
-| # | Deliverable | Acceptance Criteria |
-|---|---|---|
-| 1 | Working CLI tool | All 4 commands (scan, correlate, timeline, ask) execute successfully |
-| 2 | 5 Coral sources connected | GitHub, Jira, Sentry, Grafana (bundled) + OSV (custom) |
-| 3 | Cross-source JOINs | At least 3 queries that JOIN 3+ sources |
-| 4 | OSV source spec | Valid YAML, passes `coral source validate`, submitted to Coral repo |
-| 5 | AI agent | Natural language → SQL → formatted output via Coral MCP |
-| 6 | README | Installation, quickstart, screenshots/GIFs, architecture diagram |
-| 7 | Blog post | Published on Medium, 2-3 pages, reproducible |
-| 8 | Discord showcase | Posted in #how-i-coral with screenshots and write-up |
-| 9 | Social posts | LinkedIn + X tagging @withcoral and @WeMakeDevs |
-| 10 | Demo video | 3-5 minute screen recording walking through scenarios |
+| # | Deliverable | Acceptance Criteria | Phase |
+|---|---|---|---|
+| 1 | **Agent workflow** | DETECT → RECOMMEND → ACT with human approval | 2–4 |
+| 2 | Working dashboard | Three tabs: Detect, Actions, Timeline | 4 |
+| 3 | Action execution | At least 3 real write actions (Jira, GitHub PR, report) | 3 |
+| 4 | Human-in-the-loop | No write without explicit Approve click | 3 |
+| 5 | 5 Coral sources | GitHub, Jira, Sentry, Grafana + OSV | 0 ✅ |
+| 6 | Cross-source JOINs | 3+ queries JOIN 3+ sources | 0 ✅ |
+| 7 | OSV source spec | Passes `coral source lint`, submitted to Coral repo | 0 ✅ |
+| 8 | AI agent | NL → SQL + recommendations | 2 |
+| 9 | SQL transparency | Detect tab shows Coral SQL; Actions tab shows API summary | 4 |
+| 10 | CLI | scan, correlate, recommend, act commands | 2–3 |
+| 11 | README | Lead with agent workflow, not dashboard | 5 |
+| 12 | Demo video | 3-minute screen recording of full workflow | 5 |
+| 13 | Blog + social | Medium post, Discord showcase, LinkedIn + X | 5 |
+| 14 | **Code quality** | Full `src/` + `tests/` pass `ruff check` and `ruff format --check`; public API docstrings complete | 5 |
 
 ### Judging Criteria Mapping
 
-| Criterion | Target Score | How We Achieve It |
+| Criterion | Target | How We Achieve It |
 |---|---|---|
-| Potential Impact | 9/10 | Real problem, real tools, real data. Spoken from 8+ years of experience. |
-| Creativity & Originality | 8/10 | Security + DevOps cross-correlation is unique. Nobody else will combine these 5 sources. |
-| Learning & Growth | 9/10 | First-time Coral user. Built custom source spec. Learned Sentry. Documented journey. |
-| Technical Implementation | 9/10 | 5 sources, complex JOINs, agent layer, rich CLI. |
-| Aesthetics & UX | 8/10 | Severity-colored Rich CLI. Clear commands. Intuitive output. |
-| Best Use of Coral | 9/10 | Cross-source JOINs, custom source, schema discovery, caching, SQL as universal security query. |
+| Potential Impact | 9/10 | Full remediation workflow, not just detection |
+| Creativity & Originality | 9/10 | Only team with DETECT + ACT via Coral reads + direct writes |
+| Learning & Growth | 9/10 | First Coral user; custom source; action executor |
+| Technical Implementation | 9/10 | 5-source JOINs + LLM + REST write APIs + approval gate |
+| Aesthetics & UX | 8/10 | CoralSentinel styling + Actions tab approve flow; severity colors |
+| Best Use of Coral | 9/10 | Cross-source JOINs as read layer; SQL transparency |
+| **Enterprise Agent** | **10/10** | **Complete agent loop with human-in-the-loop approval** |
 
 ---
 
-## 11. Risks and Mitigations
+## 12. Risks and Mitigations
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| Coral SQL doesn't support all query patterns | Medium | High | Test queries Day 1-2. Simplify if needed. Coral uses DataFusion (Apache Arrow) — standard SQL. |
-| Grafana free tier too limited | Medium | Low | Drop to 4 sources. Grafana is P1, not P0. |
-| OSV source spec takes longer than expected | Low | Medium | OSV API is simple (3 endpoints, no auth). Worst case: submit spec separately for bounty. |
-| LLM agent integration complexity | Medium | Medium | Fallback: skip agent, use CLI with pre-built SQL templates. Still a valid submission. |
-| Data seeding feels artificial | Low | Low | Use real vulnerable packages, real Sentry errors from real code. Nothing mocked. |
-| 7 days too tight for solo | Medium | High | P0 features only in first 4 days. Days 5-7 are polish, docs, blog. Ship at 80%. |
+| Jira/GitHub write API auth fails on demo | Medium | High | Test approve flow Day 1 of Phase 3; fallback to `generate_report` (local, always works) |
+| GitHub PR creation requires branch permissions | Medium | Medium | Use fine-grained PAT with contents:write; test on demo repo |
+| LLM unavailable during demo | Low | Medium | Rule-based recommender works without API key |
+| Coral SQL doesn't support all JOIN patterns | Medium | High | Simplify queries; test Day 1 of Phase 1 |
+| Action execution too slow for live demo | Low | Medium | Pre-warm connections; stagger UI animation like prototype |
+| 7 days too tight for solo | Medium | High | Phases 1–3 are P0; Phase 5 polish can ship at 80% |
 
 ---
 
-## 12. Post-Hackathon Roadmap (mention in README)
+## 13. Non-Functional Requirements
 
-- Slack integration for real-time security alerts
-- Additional custom sources: Snyk, Trivy, GitHub Advanced Security
-- Scheduled scans with cron/Celery
-- Team dashboard (Streamlit/Plotly)
-- CI/CD integration: run `devsecops-coral scan` in GitHub Actions
-- Severity scoring algorithm with configurable weights
-- Export to SARIF format for GitHub Code Scanning integration
+| ID | Requirement | Target |
+|---|---|---|
+| NFR-1 | Coral reads stay local (Coral's security model) | No read data leaves the machine |
+| NFR-2 | Write actions only after explicit approval | Zero auto-execute |
+| NFR-3 | Credentials in `.env` only | Never committed |
+| NFR-4 | Query response time (single-source) | < 5 seconds |
+| NFR-5 | Query response time (5-source JOIN) | < 15 seconds |
+| NFR-6 | Action execution time (per action) | < 10 seconds |
+| NFR-7 | Python 3.10+ | Match Coral requirements |
+| NFR-8 | Lint cleanliness | `ruff check src/ tests/` exits 0 before submission |
+| NFR-9 | Format consistency | `ruff format --check src/ tests/` exits 0 before submission |
+| NFR-10 | Docstring coverage | All public modules, classes, and functions in `src/devsecops_coral/` documented |
+
+---
+
+## 14. Post-Hackathon Roadmap
+
+- Slack notifications when actions complete
+- Persistent action history (SQLite)
+- Scheduled detect → recommend cycles
+- Additional action types: Snyk ignore rules, Dependabot auto-merge
+- CI/CD: `devsecops-coral scan && devsecops-coral recommend` in GitHub Actions
+- SARIF export for GitHub Code Scanning integration
+
+---
+
+## Appendix A: UI Design Specification
+
+Reference prototype: `ui-prototype.jsx` (shared May 2026).  
+Production codebase: `frontend/src/` with CoralSentinel design system.
+
+### A.1 Design Principle
+
+| Adopt from prototype | Keep from current UI |
+|---|---|
+| 3-tab workflow: Detect → Actions → Timeline | Sidebar shell (280px), `SourceStatus` manager |
+| ActionsPanel with Approve / Dismiss / Approve All | `DashboardHeader`, source chips, theme toggle |
+| Action type badges, status transitions | `theme/tokens.js`, `SEV`, orange accent |
+| Agent analysis block in query console | `CommandBar`, filter controls |
+| Footer agent tagline | `Card`, `ActionButton`, `Badge`, `Pill` primitives |
+| Tab-specific SqlViewer content | Dark + light theme via `data-theme` |
+| Correlation merged into Detect tab | Existing scan/correlate/timeline components |
+
+**Do not port:** prototype's `#09090b` zinc palette, Geist fonts, top-only source grid, or single-column max-width layout.
+
+### A.2 Shell Layout (unchanged)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ DashboardHeader — CoralSentinel · source chips · theme toggle           │
+├──────────────┬──────────────────────────────────────────────────────────┤
+│ Sidebar      │ Sticky tab bar: Detect | Actions | Timeline              │
+│ (fixed)      ├──────────────────────────────────────────────────────────┤
+│              │ PostureOverview (always)                                 │
+│ SourceStatus │ CommandBar (always)                                      │
+│ connect/test ├──────────────────────────────────────────────────────────┤
+│              │ [Tab content — see A.3]                                  │
+│              │                                                          │
+│              │ Footer tagline (Phase 4)                                 │
+└──────────────┴──────────────────────────────────────────────────────────┘
+```
+
+### A.3 Tab Content Matrix
+
+| Tab | Visible components | Hidden |
+|---|---|---|
+| **Detect** | ScanTable, CorrelationView, SqlViewer, QueryConsole | ActionsPanel |
+| **Actions** | ActionsPanel, SqlViewer (DETECT + ACT comments) | ScanTable, CorrelationView, QueryConsole |
+| **Timeline** | Timeline | SqlViewer, QueryConsole, ActionsPanel |
+
+### A.4 Component Mapping
+
+| Prototype | Production | Notes |
+|---|---|---|
+| `ScanTable` | `ScanTable.jsx` | Keep row actions (focus package, ask) |
+| `Posture` | `PostureOverview.jsx` | Add untracked count (Phase 1) |
+| `SourcePanel` | `SourceStatus.jsx` | Stays in sidebar, not top grid |
+| `ActionsPanel` | `ActionsPanel.jsx` **new** | Use `ActionButton`, not prototype raw `<button>` |
+| `Timeline` | `Timeline.jsx` | Unchanged |
+| `SqlViewer` | `SqlViewer.jsx` | Context prop: `mode="detect"` \| `"actions"` |
+| `QueryConsole` | `QueryConsole.jsx` | Add recommendations block |
+| Tab nav | `App.jsx` sticky header | Keep bottom-border active state |
+| Footer | `App.jsx` main footer | New in Phase 4 |
+
+### A.5 ActionsPanel — Feature Spec
+
+Each action card displays:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ [icon] [JIRA] [HIGH]                              [Approve] [Dismiss]│
+│        Create Jira ticket for GHSA-ppf2-m228 (pillow)                │
+│        HIGH severity CVE with 12 active Sentry errors…               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Field | Source | UI element |
+|---|---|---|
+| `type` | API | `Pill` — JIRA / GITHUB PR / GRAFANA / REPORT |
+| `severity` | API | `Badge` (hidden when INFO) |
+| `title` | API | 13px semibold |
+| `detail` | API | 12px `T.textSecondary` |
+| `status` | Local + API | pending / executing / done / dismissed |
+| `urgent` | API | Optional red left border or "URGENT" Pill |
+
+**Header controls:**
+
+| Control | Style | Behavior |
+|---|---|---|
+| Approve All (N) | `ActionButton tone="accent"` | Calls `POST /api/actions/approve-all` |
+| N completed | `Pill color={T.green}` | Shown when `doneCount > 0` |
+| Approve | `ActionButton tone="accent"` | Single action execute |
+| Dismiss | `ActionButton` ghost | Marks dismissed, no API write |
+
+**Status styling (use existing tokens):**
+
+| Status | Row background | Border |
+|---|---|---|
+| pending | `T.cardDim` | `T.border` |
+| executing | `T.accentGlow` | `T.accentBorder` |
+| done | `rgba(16,185,129,0.04)` | `rgba(16,185,129,0.15)` |
+| dismissed | transparent | `T.border`, opacity 0.4 |
+
+### A.6 QueryConsole — Recommendations Block
+
+When agent returns analysis (prototype lines 354–358):
+
+```
+┌─ Agent Analysis + Recommended Actions ─────────────────────────────┐
+│ Found 2 untracked HIGH-severity CVEs… Recommended: create Jira     │
+│ tickets, draft PR, annotate Grafana.                               │
+│ [ Review in Actions tab → ]                                        │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- Green-tinted block (`rgba(16,185,129,0.04)` border) — matches existing success patterns
+- "Review in Actions tab →" switches `tab` to `"actions"` via callback prop
+
+### A.7 SqlViewer — Actions Tab Content
+
+Second panel below ActionsPanel. Content = last DETECT SQL + static ACT comment block:
+
+```sql
+-- DETECT: (last executed Coral query)
+
+-- ACT: The agent executes via direct API calls after approval:
+-- POST /rest/api/3/issue        → Jira ticket
+-- POST /repos/.../pulls         → GitHub PR
+-- POST /api/annotations         → Grafana mark
+-- Local file write              → Markdown report
+```
+
+Copy button and syntax styling unchanged from current `SqlViewer.jsx`.
+
+## Appendix B: Action API Details
+
+| Action | Method | Endpoint | Payload Summary |
+|---|---|---|---|
+| Create Jira ticket | POST | `/rest/api/3/issue` | `{ fields: { project, summary, issuetype, priority, labels, description } }` |
+| Create GitHub PR | POST | `/repos/{owner}/{repo}/pulls` | `{ title, head, base, body }` (+ prior branch commit updating requirements.txt) |
+| Create GitHub issue | POST | `/repos/{owner}/{repo}/issues` | `{ title, body, labels }` |
+| Grafana annotation | POST | `/api/annotations` | `{ dashboardUID, time, text, tags }` |
+| Generate report | Local | — | Write Markdown to `./reports/posture-{date}.md` |
