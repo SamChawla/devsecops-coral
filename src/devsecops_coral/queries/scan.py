@@ -18,6 +18,8 @@ SELECT
     j.key AS jira_ticket,
     j.status AS jira_status,
     j.priority AS jira_priority,
+    CASE WHEN j.key IS NULL THEN 'UNTRACKED'
+         ELSE COALESCE(j.status, 'Tracked') END AS tracking_status,
     COALESCE(se.count, 0) AS error_count,
     se.level AS error_level
 FROM osv.search_vulnerabilities(
@@ -33,6 +35,7 @@ LEFT JOIN jira.issues j
     )
 LEFT JOIN sentry.issues se
     ON se.level IN ('fatal', 'error')
+    AND se.last_seen >= NOW() - INTERVAL '30' DAY
     AND (
         se.title LIKE CONCAT('%', '{package}', '%')
         OR se.culprit LIKE CONCAT('%', '{package}', '%')
@@ -51,6 +54,7 @@ SELECT
     CAST(NULL AS VARCHAR) AS jira_ticket,
     CAST(NULL AS VARCHAR) AS jira_status,
     CAST(NULL AS VARCHAR) AS jira_priority,
+    'UNTRACKED' AS tracking_status,
     CAST(0 AS BIGINT) AS error_count,
     CAST(NULL AS VARCHAR) AS error_level
 FROM osv.search_vulnerabilities(
@@ -118,6 +122,7 @@ def run_scan(*, ecosystem: str, packages: list[str]) -> QueryResult:
                     "severity": None,
                     "jira_ticket": None,
                     "jira_status": None,
+                    "tracking_status": "Clean",
                 }
             )
 

@@ -1,32 +1,44 @@
 # Demo Scenario: Untracked CVEs
 
-This scenario demonstrates FR-2.3 — CVEs with no corresponding Jira ticket.
+Demonstrates FR-2.3 — surfacing CVEs that have no corresponding Jira security ticket.
 
-## Prerequisites
+## Setup (seed data required)
 
-1. OSV source connected with live vulnerability data
-2. Jira project with security-labeled tickets (some packages tracked, others not)
-3. Demo packages: `django,flask,requests,celery`
+| Package | Jira Ticket | Expected Status |
+|---------|-------------|-----------------|
+| django  | SEC-1 (In Progress) | Tracked |
+| requests | — | **UNTRACKED** |
+| pillow  | — | **UNTRACKED** |
+| celery  | SEC-4 (Open) | Tracked |
 
-## Steps
+Ensure Jira project "SEC" has SEC-1 for django and SEC-4 for celery.
+Do **not** create tickets for `requests` or `pillow` — the agent creates them.
 
-### CLI
+## CLI Demo
 
 ```bash
-devsecops-coral scan --ecosystem PyPI --packages django,flask,requests,celery
+devsecops-coral scan --ecosystem PyPI --packages django,requests,pillow,celery
 ```
 
-Expected: at least one row with a CVE but **no Jira ticket** (UNTRACKED warning in output).
+Expected output:
 
-### Dashboard
+```
+Package    CVE            Severity  Jira Ticket  Status
+django     GHSA-…         CRITICAL  SEC-1        In Progress
+requests   GHSA-…         HIGH      —            UNTRACKED ⚠
+pillow     GHSA-ppf2-m228 HIGH      —            UNTRACKED ⚠  (12 errors)
+celery     GHSA-…         MEDIUM    SEC-4        Open
+```
 
-1. Open **Scan** tab
-2. Look for rows highlighted with UNTRACKED badge
-3. Check **Posture Overview** for untracked count > 0
-4. Verify SqlViewer shows OSV search + Jira LEFT JOIN
+## Dashboard Demo
 
-## What Judges Should See
+1. Open **Detect** tab → Scan Results
+2. Filter by **Untracked** status — 2 rows highlighted in orange
+3. Check **Posture Overview** strip: `Untracked: 2` shown in orange
+4. Verify **SqlViewer** shows the `LEFT JOIN jira.issues` + `tracking_status` CASE expression
 
-- LEFT JOIN pattern handles missing Jira data gracefully
-- Untracked vulnerabilities surfaced prominently
-- Posture overview aggregates severity + untracked counts
+## What Judges See
+
+- `CASE WHEN j.key IS NULL THEN 'UNTRACKED'` computed directly in Coral SQL
+- Untracked count propagated to posture KPIs
+- Orange highlighting draws attention to the security gap

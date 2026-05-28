@@ -43,6 +43,10 @@ FROM osv.search_vulnerabilities(
 LEFT JOIN sentry.issues se
     ON se.level IN ('fatal', 'error')
     AND se.last_seen >= NOW() - {interval}
+    AND (
+        se.title LIKE CONCAT('%', '{package}', '%')
+        OR se.culprit LIKE CONCAT('%', '{package}', '%')
+    )
 ORDER BY se.count DESC NULLS LAST
 LIMIT 50
 """
@@ -87,6 +91,10 @@ FROM osv.search_vulnerabilities(
 LEFT JOIN sentry.issues se
     ON se.level IN ('fatal', 'error')
     AND se.last_seen >= NOW() - {interval}
+    AND (
+        se.title LIKE CONCAT('%', '{package}', '%')
+        OR se.culprit LIKE CONCAT('%', '{package}', '%')
+    )
 LEFT JOIN github.pulls g
     ON g.owner = '{owner}'
     AND g.repo = '{repo}'

@@ -96,6 +96,26 @@ async def memory_pressure():
         )
 
 
+@app.get("/pillow-error")
+async def pillow_image_error():
+    """Simulate a pillow image-processing failure (seeds the ACTIVE exploitation scenario).
+
+    Call this endpoint 12 times to trigger the ``error_count >= 10`` threshold
+    that marks pillow as an ACTIVE exploitation signal in the correlation query.
+    """
+    try:
+        # Simulate the kind of error pillow CVE GHSA-ppf2-m228 can trigger
+        raise ValueError(
+            "pillow: decompression bomb protection triggered — "
+            "image exceeds MAX_IMAGE_PIXELS limit (CVE / GHSA-ppf2-m228). "
+            "Upgrade pillow >= 10.3.0 to apply the security fix."
+        )
+    except ValueError as exc:
+        if SENTRY_DSN:
+            sentry_sdk.capture_exception(exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.get("/generate-errors")
 async def generate_batch_errors():
     """Generate a batch of diverse errors for Sentry seeding."""
