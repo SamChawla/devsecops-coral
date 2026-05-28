@@ -233,6 +233,7 @@ export default function SourceStatus({ sources, loading, busySource, actionMessa
               <ActionButton
                 onClick={() => onTest(selected.name)}
                 disabled={loading || busySource === selected.name || !selected.connected}
+                title={!selected.connected ? "Connect the source first" : "Run validation queries"}
                 style={{ flex: 1, justifyContent: "center" }}
               >
                 Test
@@ -240,7 +241,8 @@ export default function SourceStatus({ sources, loading, busySource, actionMessa
               <ActionButton
                 tone="danger"
                 onClick={() => onRemove(selected.name)}
-                disabled={loading || busySource === selected.name || !selected.connected}
+                disabled={loading || busySource === selected.name}
+                title="Remove this source from Coral"
                 style={{ flex: 1, justifyContent: "center" }}
               >
                 Remove

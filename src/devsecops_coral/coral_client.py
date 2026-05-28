@@ -133,14 +133,33 @@ def list_sources() -> list[dict[str, Any]]:
     return []
 
 
+def _inject_env_into_wsl(cmd: list[str], env: dict[str, str]) -> list[str]:
+    """Prepend ``env KEY=VALUE …`` into a WSL command after the ``--`` separator.
+
+    WSL does not forward arbitrary Windows subprocess environment variables into
+    the Linux process, so credentials must be injected inline using the ``env``
+    utility rather than relying on ``subprocess.run(env=...)``.
+    """
+    env_args = [f"{k}={v}" for k, v in env.items() if v]
+    if not env_args:
+        return cmd
+    if "--" in cmd:
+        idx = cmd.index("--") + 1
+        return cmd[:idx] + ["env"] + env_args + cmd[idx:]
+    return cmd
+
+
 def add_bundled_source(
     name: str,
     *,
     interactive: bool = True,
     env: dict[str, str] | None = None,
 ) -> str:
-    """Add a bundled Coral source."""
-    cmd = _coral_command() + ["source", "add"]
+    """Add a bundled Coral source, injecting credentials inline for WSL compatibility."""
+    cmd = _coral_command()
+    if env and "wsl" in CORAL_BIN.lower():
+        cmd = _inject_env_into_wsl(cmd, env)
+    cmd += ["source", "add"]
     if interactive:
         cmd.append("--interactive")
     cmd.append(name)
@@ -149,7 +168,7 @@ def add_bundled_source(
         capture_output=True,
         text=True,
         timeout=300.0,
-        env=_command_env(env),
+        env=_command_env(env),  # still passed for non-WSL systems
     )
     if result.returncode != 0:
         raise CoralError((result.stderr or result.stdout or "").strip())
