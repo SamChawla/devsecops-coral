@@ -2,7 +2,7 @@
  * Root dashboard shell — Detect · Actions · Timeline tabs.
  * Implements the full DETECT → RECOMMEND → ACT agent workflow.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "./hooks/useApi.js";
 import ActionsPanel from "./components/ActionsPanel.jsx";
 import CommandBar from "./components/CommandBar.jsx";
@@ -69,6 +69,7 @@ export default function App() {
   const [consoleSeed, setConsoleSeed]   = useState({ id: 0, text: "" });
   const [sourceMessage, setSourceMessage] = useState("");
   const [busySource, setBusySource]     = useState("");
+  const queryConsoleRef                 = useRef(null);
   // Actions tab state
   const [actions, setActions]           = useState([]);
   const [actionsLoaded, setActionsLoaded] = useState(false);
@@ -189,7 +190,12 @@ export default function App() {
     setFilters(f); setTab("detect"); loadPosture(f); loadScan(f); loadCorrelate(f);
   };
 
-  const seedQuestion = (text) => setConsoleSeed((c) => ({ id: c.id + 1, text }));
+  const seedQuestion = (text) => {
+    setConsoleSeed((c) => ({ id: c.id + 1, text }));
+    setTimeout(() => {
+      queryConsoleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  };
 
   const statusColor = loading ? T.yellow : error ? T.red : T.green;
   const statusLabel = loading ? "QUERYING" : error ? "ERROR" : "ONLINE";
@@ -348,11 +354,13 @@ export default function App() {
                   />
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
                     <SqlViewer sql={lastSql} mode="detect" />
-                    <QueryConsole
-                      onAsk={handleAsk} onSql={handleSql}
-                      loading={loading} result={queryResult} seedQuery={consoleSeed}
-                      onSwitchTab={() => { setTab("actions"); if (!actionsLoaded) loadActions(filters); }}
-                    />
+                    <div ref={queryConsoleRef}>
+                      <QueryConsole
+                        onAsk={handleAsk} onSql={handleSql}
+                        loading={loading} result={queryResult} seedQuery={consoleSeed}
+                        onSwitchTab={() => { setTab("actions"); if (!actionsLoaded) loadActions(filters); }}
+                      />
+                    </div>
                   </div>
                 </>
               )}
