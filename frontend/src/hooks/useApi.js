@@ -120,6 +120,37 @@ export function useApi() {
     [request],
   );
 
+  const getActions = useCallback(
+    (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/api/actions?${qs}`);
+    },
+    [request],
+  );
+
+  const getRecommend = useCallback(
+    (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/api/recommend?${qs}`);
+    },
+    [request],
+  );
+
+  const approveAction = useCallback(
+    (id) => request(`/api/actions/${id}/approve`, { method: "POST" }),
+    [request],
+  );
+
+  const approveAllActions = useCallback(
+    () => request("/api/actions/approve-all", { method: "POST" }),
+    [request],
+  );
+
+  const dismissAction = useCallback(
+    (id) => request(`/api/actions/${id}/dismiss`, { method: "POST" }),
+    [request],
+  );
+
   return {
     loading,
     error,
@@ -136,5 +167,10 @@ export function useApi() {
     connectSource,
     testSource,
     removeSource,
+    getActions,
+    getRecommend,
+    approveAction,
+    approveAllActions,
+    dismissAction,
   };
 }

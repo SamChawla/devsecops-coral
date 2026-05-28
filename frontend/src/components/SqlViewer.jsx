@@ -34,13 +34,25 @@ function tokenize(line) {
   return segments;
 }
 
+const ACT_COMMENT_BLOCK = `
+-- ACT: The agent executes via direct API calls after approval:
+-- POST /rest/api/3/issue        → Create Jira ticket
+-- POST /repos/{owner}/{repo}/pulls → Draft GitHub PR
+-- POST /api/annotations         → Annotate Grafana timeline
+-- Local file write              → Generate Markdown report
+--
+-- All actions require explicit human approval before execution.`.trimStart();
+
 /**
  * Displays the last executed Coral SQL query with syntax highlighting.
- * @param {{ sql: string }} props
+ * @param {{ sql: string, mode?: "detect"|"actions" }} props
  */
-export default function SqlViewer({ sql }) {
+export default function SqlViewer({ sql, mode = "detect" }) {
   const [copied, setCopied] = useState(false);
-  const text = sql || "";
+  const detectSql = sql || "";
+  const text = mode === "actions" && detectSql
+    ? `-- DETECT: Coral cross-source query\n${detectSql}\n\n${ACT_COMMENT_BLOCK}`
+    : detectSql;
   const placeholder = !text;
   const displayText = text || "-- Run a query to see the generated Coral SQL here\n-- Cross-source JOINs will appear with full syntax highlighting";
   const lines = displayText.split("\n");
