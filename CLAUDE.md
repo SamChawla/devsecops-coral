@@ -56,6 +56,8 @@ rich>=13.0.0          # Terminal formatting
 httpx>=0.27.0         # HTTP client (for agent API calls only, NOT for data sources)
 anthropic>=0.40.0     # Claude API for agent layer
 pydantic>=2.0.0       # Data validation
+fastapi>=0.115.0      # Dashboard REST API
+uvicorn>=0.30.0       # ASGI server for devsecops-coral serve
 
 # Dev only
 pytest>=8.0.0
@@ -64,7 +66,7 @@ ruff>=0.5.0
 
 **Do NOT add:**
 - `requests` — use `httpx` (async-ready, modern)
-- `flask`, `django`, `fastapi` — this is a CLI tool, not a web app
+- `flask`, `django` — use FastAPI for the dashboard API only
 - `pandas`, `numpy` — overkill for formatting query results
 - `langchain`, `crewai`, `autogen` — no agent frameworks. Keep it simple: raw Anthropic API calls.
 - Any database drivers — Coral IS the database layer
@@ -82,13 +84,16 @@ ruff>=0.5.0
 
 ```
 src/devsecops_coral/       # All source code here
-├── cli.py                 # Typer app with commands: scan, correlate, timeline, ask
+├── cli.py                 # Typer app with commands: scan, correlate, timeline, ask, serve
+├── api.py                 # FastAPI app — dashboard REST endpoints
+├── models.py              # Pydantic request/response models
 ├── agent.py               # LLM integration — intent parsing, SQL generation, analysis
 ├── coral_client.py        # Coral MCP/CLI wrapper — the ONLY file that talks to Coral
 ├── queries/               # SQL query templates (parameterized)
 │   ├── correlate.py       # Vulnerability-deploy-error correlation
 │   ├── scan.py            # Security posture scan
-│   └── timeline.py        # Unified event timeline
+│   ├── timeline.py        # Unified event timeline
+│   └── posture.py         # Severity aggregation
 ├── formatters/            # Output formatting
 │   ├── rich_output.py     # Rich terminal tables with severity colors
 │   ├── json_output.py     # JSON export
@@ -291,7 +296,110 @@ def test_scan_query(mocker):
 
 ---
 
-## Security Rules
+## Frontend / Dashboard Rules
+
+### Architecture
+
+- **React + Vite (inline styles, no CSS framework)** in `frontend/` directory
+- **FastAPI** backend in `src/devsecops_coral/api.py` serves both the REST API and static frontend build
+- Frontend calls backend API endpoints — NEVER calls Coral directly
+- `devsecops-coral serve` starts FastAPI with the built frontend served from `frontend/dist/`
+
+### Design Direction: Security Command Center
+
+- **Dark theme only** — navy/slate background (`#020617`, `#0f172a`)
+- **Severity colors are sacred:** CRITICAL=red, HIGH=orange, MEDIUM=yellow, LOW=green, INFO=blue
+- **Monospace for data:** JetBrains Mono for CVE IDs, SQL queries, timestamps
+- **Sans-serif for labels:** Inter for headings, descriptions, navigation
+- **Ambient glow effects** for active threats — subtle radial gradients, not flashy
+- **NO generic AI aesthetics** — no purple gradients, no rounded-everything, no Inter-only
+
+### Component Rules
+
+```
+components/
+├── SourceStatus.jsx      # Left sidebar: 5 sources with connection dots + MCP/cache status
+├── PostureOverview.jsx   # Top cards: CRITICAL/HIGH/MED/LOW severity counters
+├── ScanTable.jsx         # Full vulnerability table with all columns
+├── CorrelationView.jsx   # Vuln ↔ Error signal cards (🔴 ACTIVE / 🟡 MONITOR / 🟢 CLEAN)
+├── Timeline.jsx          # Vertical timeline with source-colored dots
+├── QueryConsole.jsx      # Dual-mode input: natural language ↔ raw SQL + results
+└── SqlViewer.jsx         # Shows generated Coral SQL (transparency for judges)
+```
+
+- Every component receives data from the API via `useApi` hooks — no hardcoded mock data in production
+- **SqlViewer is CRITICAL** — this is what differentiates from a pretty wrapper. Show the actual 5-source JOIN query so judges see the Coral depth.
+- Query Console must support BOTH natural language AND raw SQL mode with a toggle
+
+### FastAPI Backend Endpoints
+
+```python
+# All endpoints must return both `data` AND `sql` fields
+# The `sql` field contains the Coral SQL that was executed — for the SqlViewer
+
+@app.get("/api/scan")
+async def scan(ecosystem: str, packages: str) -> ScanResponse:
+    """Returns vulnerability scan results + the Coral SQL used."""
+
+@app.get("/api/correlate")
+async def correlate(since: str = "7d") -> CorrelateResponse:
+    """Returns vulnerability-error correlations + the Coral SQL used."""
+
+@app.get("/api/timeline")
+async def timeline(since: str = "24h") -> TimelineResponse:
+    """Returns unified event timeline + the Coral SQL used."""
+
+@app.post("/api/ask")
+async def ask(query: AskRequest) -> AskResponse:
+    """Agent: natural language → SQL → results → analysis."""
+
+@app.get("/api/sources")
+async def sources() -> SourcesResponse:
+    """Returns connected source status (from coral.tables metadata)."""
+
+@app.get("/api/posture")
+async def posture() -> PostureResponse:
+    """Returns aggregated severity counts."""
+```
+
+### What NOT to Do in Frontend
+
+- Do NOT use localStorage/sessionStorage (doesn't work in all contexts)
+- Do NOT make the dashboard depend on external CDNs at runtime (bundle everything)
+- Do NOT add user authentication (it's a local tool, not a SaaS)
+- Do NOT auto-refresh data on intervals (let the user trigger queries)
+- Do NOT hide the SQL — the whole point is transparency
+
+### Build & Serve
+
+```bash
+# Development (two terminals)
+cd frontend && npm run dev          # Vite dev server on :5173
+cd .. && uvicorn devsecops_coral.api:app --reload  # FastAPI on :8000
+
+# Production
+cd frontend && npm run build        # Outputs to frontend/dist/
+devsecops-coral serve               # FastAPI serves dist/ + API on :8000
+```
+
+---
+
+## Hackathon Execution Timeline (with UI)
+
+| Day | Focus | Hours | Deliverable | Claude Code Usage |
+|---|---|---|---|---|
+| **Day 1** | Sources + OSV spec + data seeding | 5h | All 5 sources connected. OSV spec linted. Demo data in Sentry/Jira/GitHub. | Manual work + Claude for seed scripts |
+| **Day 2** | Core SQL queries + Coral client | 5h | 4 cross-source queries tested. `coral_client.py` working. | Claude Code writes query templates |
+| **Day 3** | FastAPI backend + CLI | 4h | All API endpoints + CLI commands working. Agent layer done. | Claude Code generates ~80% of backend |
+| **Day 4** | React dashboard | 5h | Full dashboard with all 6 components. Severity colors. SQL viewer. | Claude Code/Cursor generates from prototype |
+| **Day 5** | Integration + polish | 4h | Frontend ↔ Backend connected. Edge cases. Error handling. | Claude Code for debugging |
+| **Day 6** | Blog + showcase + video | 4h | Medium post published. Discord showcase posted. Demo video recorded. | Claude helps polish blog |
+| **Day 7** | Submit + social | 3h | Final testing. Submit. LinkedIn + X posts with demo GIF. | Manual |
+| | **TOTAL** | **~30h** | | |
+
+---
+
+## Testing Rules
 
 1. **No secrets in code.** API tokens go in environment variables or Coral's secure config.
 2. **No data exfiltration.** The tool reads data; it never writes to external services.
@@ -473,17 +581,18 @@ LinkedIn, X/Twitter, Discord, Medium:
 
 ### Priority Order
 
-1. **Working queries** — If nothing else works, cross-source SQL queries in the CLI are the submission
-2. **CLI UX** — Rich output with severity colors makes the demo memorable
-3. **OSV source spec** — Earns the bounty independently
-4. **Agent layer** — Natural language is impressive but not required for a winning submission
-5. **Dashboard** — Only if time allows. Skip if behind schedule.
+1. **Working queries** — Cross-source SQL queries are the foundation
+2. **FastAPI backend + serve** — Shared query engine exposed via REST API
+3. **React dashboard** — Security command center with SqlViewer (P0 for judges)
+4. **CLI UX** — Rich output with severity colors for terminal demos
+5. **OSV source spec** — Earns the bounty independently
+6. **Agent layer** — Natural language is impressive but not required for a valid submission
 
 ### Time Management
 
-- **Days 1-2:** Sources connected + queries working = minimum viable submission
-- **Days 3-4:** CLI + agent = strong submission
-- **Days 5-7:** Docs + blog + polish = winning submission
+- **Days 1-2:** Sources connected + queries working
+- **Days 3-4:** FastAPI backend + React dashboard
+- **Days 5-7:** Integration, docs, blog + polish = winning submission
 - **If stuck:** Ask in Coral Discord. The team is responsive during the hackathon.
 
 ### Documentation as You Go
@@ -495,8 +604,7 @@ LinkedIn, X/Twitter, Discord, Medium:
 ### What NOT to Spend Time On
 
 - Perfecting the agent prompt (good enough is fine)
-- Building a web dashboard (CLI is the product)
-- Supporting multiple LLM providers (Claude only)
+- Supporting multiple LLM providers (Claude/EURI/Cursor only)
 - CI/CD pipeline (it's a hackathon)
 - 100% test coverage (test the critical paths)
 - Docker/containerization (not needed)

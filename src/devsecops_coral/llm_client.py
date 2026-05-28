@@ -1,4 +1,4 @@
-"""LLM provider clients — EURI (euron.one) and Cursor subscription (via proxy)."""
+"""LLM provider clients — Anthropic, EURI (euron.one), and Cursor (via proxy)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from typing import Any
 import httpx
 
 from devsecops_coral.config import (
+    ANTHROPIC_API_KEY,
+    ANTHROPIC_MODEL,
     CURSOR_API_KEY,
     CURSOR_BASE_URL,
     CURSOR_MODEL,
@@ -16,6 +18,7 @@ from devsecops_coral.config import (
     resolve_llm_provider,
 )
 
+PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_EURI = "euri"
 PROVIDER_CURSOR = "cursor"
 
@@ -67,9 +70,48 @@ def _openai_chat_completion(
         raise LLMError(f"Unexpected {provider_label} response format") from exc
 
 
+def _anthropic_chat_completion(
+    messages: list[dict[str, str]],
+    *,
+    temperature: float,
+    timeout: float,
+) -> str:
+    """Call the Anthropic Messages API directly using the ``anthropic`` SDK."""
+    try:
+        import anthropic as _anthropic
+    except ImportError as exc:
+        raise LLMError("anthropic package not installed. Run: pip install anthropic") from exc
+
+    system_parts = [m["content"] for m in messages if m.get("role") == "system"]
+    user_msgs = [m for m in messages if m.get("role") != "system"]
+    system_text = "\n\n".join(system_parts) if system_parts else None
+
+    try:
+        client = _anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        kwargs: dict[str, Any] = {
+            "model": ANTHROPIC_MODEL,
+            "max_tokens": 4096,
+            "temperature": temperature,
+            "messages": user_msgs,
+        }
+        if system_text:
+            kwargs["system"] = system_text
+        response = client.messages.create(**kwargs)
+        return str(response.content[0].text)
+    except Exception as exc:
+        raise LLMError(f"Anthropic request failed: {exc}") from exc
+
+
 def chat_completion(messages: list[dict[str, str]], *, temperature: float = 0.2) -> str:
     """Send a chat completion using the configured LLM provider."""
     provider = resolve_llm_provider()
+
+    if provider == PROVIDER_ANTHROPIC:
+        if not ANTHROPIC_API_KEY:
+            raise LLMError(
+                "ANTHROPIC_API_KEY is not set. Add it to .env or set LLM_PROVIDER=cursor."
+            )
+        return _anthropic_chat_completion(messages, temperature=temperature, timeout=60.0)
 
     if provider == PROVIDER_CURSOR:
         return _openai_chat_completion(
@@ -84,8 +126,10 @@ def chat_completion(messages: list[dict[str, str]], *, temperature: float = 0.2)
 
     if not EURI_API_KEY:
         raise LLMError(
-            "No LLM configured. Set EURI_API_KEY (https://euron.one/euri) or run a Cursor proxy "
-            "at http://localhost:4646/v1 and set LLM_PROVIDER=cursor."
+            "No LLM configured. Options:\n"
+            "  1. Set ANTHROPIC_API_KEY in .env  (LLM_PROVIDER=anthropic)\n"
+            "  2. Set EURI_API_KEY in .env        (LLM_PROVIDER=euri)\n"
+            "  3. Run: npx cursor-agent-api-proxy  (LLM_PROVIDER=cursor)"
         )
     return _openai_chat_completion(
         base_url=EURI_BASE_URL,
@@ -101,6 +145,12 @@ def chat_completion(messages: list[dict[str, str]], *, temperature: float = 0.2)
 def active_provider_info() -> dict[str, str]:
     """Return the resolved provider and model for display/debug."""
     provider = resolve_llm_provider()
+    if provider == PROVIDER_ANTHROPIC:
+        return {
+            "provider": PROVIDER_ANTHROPIC,
+            "model": ANTHROPIC_MODEL,
+            "base_url": "https://api.anthropic.com",
+        }
     if provider == PROVIDER_CURSOR:
         return {"provider": PROVIDER_CURSOR, "model": CURSOR_MODEL, "base_url": CURSOR_BASE_URL}
     return {"provider": PROVIDER_EURI, "model": EURI_MODEL, "base_url": EURI_BASE_URL}
