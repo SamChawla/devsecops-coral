@@ -1,13 +1,7 @@
-# coral-signal-seed
+# demo/fastapi_app — Sentry Signal Seeder
 
-**Demo data repo** for the hackathon project **[devsecops-coral](https://github.com/SamChawla/devsecops-coral)**.
-
-| Repository | What it is |
-|------------|------------|
-| **devsecops-coral** | The main tool — Coral SQL CLI + agent that correlates security signals |
-| **coral-signal-seed** (this repo) | A fake vulnerable app that *produces* those signals (CVEs, PRs, Sentry errors) |
-
-This repo is not the product. It exists so judges can see real data flowing through `devsecops-coral` queries.
+Intentionally vulnerable FastAPI app that generates real Sentry errors for demo data seeding.
+Part of **[devsecops-coral](https://github.com/SamChawla/devsecops-coral)**.
 
 ## What it feeds into Coral
 
@@ -20,9 +14,18 @@ This repo is not the product. It exists so judges can see real data flowing thro
 ## Run locally
 
 ```bash
+cd demo/fastapi_app
 pip install -r requirements.txt
-export SENTRY_DSN=   # optional
-uvicorn main:app --reload --port 8000
+export SENTRY_DSN=https://...   # from your Sentry project settings
+uvicorn main:app --reload --port 8001
+```
+
+Then hit endpoints to seed Sentry:
+
+```bash
+curl http://localhost:8001/generate-errors   # batch: KeyError + TypeError + ZeroDivisionError
+curl http://localhost:8001/vulnerable        # JSONDecodeError
+curl http://localhost:8001/unhandled         # ValueError
 ```
 
 ## Security note

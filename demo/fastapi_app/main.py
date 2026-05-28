@@ -1,16 +1,17 @@
-# devsecops-coral Demo App
-#
-# A FastAPI application with intentionally vulnerable dependencies
-# that generates real errors for Sentry. Used for hackathon data seeding.
-#
-# Usage:
-#   pip install -r requirements.txt
-#   uvicorn main:app --reload --port 8000
-#
-#   Then hit the endpoints to generate Sentry events:
-#   curl http://localhost:8000/vulnerable
-#   curl http://localhost:8000/unhandled
-#   curl http://localhost:8000/dependency-error
+"""devsecops-coral demo app for Sentry error seeding.
+
+A FastAPI application with intentionally vulnerable code paths that generate
+real errors for Sentry. Used for hackathon data seeding.
+
+Usage::
+
+    pip install -r requirements.txt
+    uvicorn main:app --reload --port 8000
+
+    curl http://localhost:8000/vulnerable
+    curl http://localhost:8000/unhandled
+    curl http://localhost:8000/dependency-error
+"""
 
 import os
 
@@ -27,7 +28,7 @@ if SENTRY_DSN:
         traces_sample_rate=1.0,
         integrations=[StarletteIntegration(), FastApiIntegration()],
         environment="hackathon-demo",
-        release="coral-signal-seed@0.1.0",
+        release="devsecops-coral-demo@0.1.0",
     )
 
 app = FastAPI(
@@ -65,7 +66,7 @@ async def unhandled_exception():
 async def dependency_error():
     """Simulates an ImportError from a broken dependency after a patch."""
     try:
-        from deprecated_module import vulnerable_function  # noqa: F401
+        from deprecated_module import vulnerable_function  # type: ignore[import-not-found]  # noqa: F401
     except ImportError as e:
         raise ImportError(
             f"Critical dependency missing after security patch: {e}. "
