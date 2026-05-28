@@ -27,7 +27,8 @@ CORRELATE_QUERY = """
 SELECT
     osv.id AS cve,
     '{package}' AS package,
-    COALESCE(osv.severity, 'UNKNOWN') AS severity,
+    CASE osv.severity WHEN 'MODERATE' THEN 'MEDIUM'
+        ELSE COALESCE(osv.severity, 'UNKNOWN') END AS severity,
     osv.summary,
     se.title AS error_title,
     se.level AS error_level,
@@ -55,7 +56,8 @@ CORRELATE_QUERY_OSV_ONLY = """
 SELECT
     osv.id AS cve,
     '{package}' AS package,
-    COALESCE(osv.severity, 'UNKNOWN') AS severity,
+    CASE osv.severity WHEN 'MODERATE' THEN 'MEDIUM'
+        ELSE COALESCE(osv.severity, 'UNKNOWN') END AS severity,
     osv.summary,
     CAST(NULL AS VARCHAR) AS error_title,
     CAST(NULL AS VARCHAR) AS error_level,
@@ -75,7 +77,8 @@ CORRELATE_QUERY_WITH_GITHUB = """
 SELECT
     osv.id AS cve,
     '{package}' AS package,
-    COALESCE(osv.severity, 'UNKNOWN') AS severity,
+    CASE osv.severity WHEN 'MODERATE' THEN 'MEDIUM'
+        ELSE COALESCE(osv.severity, 'UNKNOWN') END AS severity,
     osv.summary,
     se.title AS error_title,
     se.level AS error_level,

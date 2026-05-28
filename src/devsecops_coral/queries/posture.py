@@ -13,12 +13,14 @@ _SEVERITY_KEYS = ("critical", "high", "medium", "low")
 
 
 def _count_severities(rows: list[dict]) -> dict[str, int]:
-    """Count rows by severity level."""
+    """Count rows by severity level, normalising OSV 'MODERATE' to 'MEDIUM'."""
     counts = {key: 0 for key in _SEVERITY_KEYS}
     for row in rows:
         if not row.get("cve"):
             continue
         severity = str(row.get("severity") or "").upper()
+        if severity == "MODERATE":
+            severity = "MEDIUM"
         key = severity.lower() if severity.lower() in _SEVERITY_KEYS else None
         if key:
             counts[key] += 1

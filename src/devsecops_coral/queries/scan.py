@@ -13,7 +13,8 @@ SELECT
     '{package}' AS package,
     osv.id AS cve,
     osv.summary,
-    COALESCE(osv.severity, 'UNKNOWN') AS severity,
+    CASE osv.severity WHEN 'MODERATE' THEN 'MEDIUM'
+        ELSE COALESCE(osv.severity, 'UNKNOWN') END AS severity,
     osv.published,
     j.key AS jira_ticket,
     j.status AS jira_status,
@@ -49,7 +50,8 @@ SELECT
     '{package}' AS package,
     osv.id AS cve,
     osv.summary,
-    COALESCE(osv.severity, 'UNKNOWN') AS severity,
+    CASE osv.severity WHEN 'MODERATE' THEN 'MEDIUM'
+        ELSE COALESCE(osv.severity, 'UNKNOWN') END AS severity,
     osv.published,
     CAST(NULL AS VARCHAR) AS jira_ticket,
     CAST(NULL AS VARCHAR) AS jira_status,
