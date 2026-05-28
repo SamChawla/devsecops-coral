@@ -10,6 +10,13 @@ import typer
 from rich.console import Console
 
 from devsecops_coral import __version__
+from devsecops_coral.actions.executor import (
+    ActionError,
+    approve_action,
+    approve_all,
+    dismiss_action,
+    load_actions,
+)
 from devsecops_coral.agent import AgentError
 from devsecops_coral.agent import ask as run_agent_ask
 from devsecops_coral.config import parse_packages
@@ -333,6 +340,78 @@ def recommend(
         return
 
     print_recommendations(result.actions)
+
+
+@app.command("act")
+def act(
+    approve: Annotated[int | None, typer.Option("--approve", help="Approve action by ID")] = None,
+    approve_all_flag: Annotated[
+        bool, typer.Option("--approve-all", help="Approve and execute all pending actions")
+    ] = False,
+    dismiss: Annotated[int | None, typer.Option("--dismiss", help="Dismiss action by ID")] = None,
+    list_flag: Annotated[bool, typer.Option("--list", "-l", help="List pending actions")] = False,
+    ecosystem: Annotated[str, typer.Option(help="Package ecosystem")] = "PyPI",
+    packages: Annotated[
+        str, typer.Option(help="Comma-separated package names")
+    ] = "django,flask,requests,celery,pillow",
+    since: Annotated[str, typer.Option(help="Time window for Sentry correlation")] = "7d",
+    debug: Annotated[bool, typer.Option("--debug")] = False,
+) -> None:
+    """Approve or dismiss recommended remediation actions."""
+    try:
+        rec = run_recommend(ecosystem=ecosystem, packages=packages, since=since)
+        load_actions(rec.actions)
+    except (CoralError, ValueError) as exc:
+        _handle_error(exc, debug=debug)
+
+    if list_flag or (not approve and not approve_all_flag and not dismiss):
+        print_recommendations(rec.actions)
+        return
+
+    if dismiss is not None:
+        try:
+            action = dismiss_action(dismiss)
+            console.print(f"[dim]✗ Dismissed action {dismiss}: {action.title}[/dim]")
+        except ActionError as exc:
+            _handle_error(exc, debug=debug)
+        return
+
+    if approve is not None:
+        try:
+            action = approve_action(approve)
+            _print_action_result(action)
+        except ActionError as exc:
+            _handle_error(exc, debug=debug)
+        return
+
+    if approve_all_flag:
+        executed = approve_all()
+        for action in executed:
+            _print_action_result(action)
+        done = sum(1 for a in executed if a.status.value == "done")
+        failed = sum(1 for a in executed if a.status.value == "failed")
+        console.print(f"\n[bold]{done} completed, {failed} failed[/bold]")
+
+
+def _print_action_result(action) -> None:  # type: ignore[no-untyped-def]
+    """Print a single action execution result line."""
+    from devsecops_coral.models import ActionStatus
+
+    if action.status == ActionStatus.DONE:
+        result = action.result or {}
+        detail = ""
+        if "key" in result:
+            detail = f" → {result['key']}"
+        elif "url" in result:
+            detail = f" → {result['url']}"
+        elif "path" in result:
+            detail = f" → {result['path']}"
+        console.print(f"[green]✓[/green] {action.title}{detail}")
+    elif action.status == ActionStatus.FAILED:
+        error = (action.result or {}).get("error", "unknown error")
+        console.print(f"[red]✗[/red] {action.title}: {error}")
+    else:
+        console.print(f"[dim]{action.status.value}: {action.title}[/dim]")
 
 
 @app.command("serve")

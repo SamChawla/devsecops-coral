@@ -91,6 +91,17 @@ class RecommendResponse(BaseModel):
     packages: list[str]
 
 
+class ActionsResponse(BaseModel):
+    """Response for GET /api/actions and POST /api/actions/approve-all."""
+
+    actions: list[RecommendedAction]
+    pending: int = 0
+    executing: int = 0
+    done: int = 0
+    dismissed: int = 0
+    failed: int = 0
+
+
 class AskResponse(BaseModel):
     """Response for POST /api/ask."""
 

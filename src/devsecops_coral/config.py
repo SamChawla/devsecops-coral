@@ -6,6 +6,10 @@ import os
 import re
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(override=False)
+
 # Severity styling (Rich markup)
 SEVERITY_COLORS: dict[str, str] = {
     "CRITICAL": "bold red",
@@ -22,9 +26,13 @@ SIGNAL_ICONS: dict[str, str] = {
     "unknown": "⚪",
 }
 
-# LLM provider: auto | euri | cursor
-# auto = use EURI if EURI_API_KEY is set, else Cursor proxy
+# LLM provider: auto | anthropic | euri | cursor
+# auto = anthropic if ANTHROPIC_API_KEY set, then euri if EURI_API_KEY set, else cursor proxy
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "auto")
+
+# Anthropic (direct — recommended, uses the same key as Claude Code)
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 # EURI (euron.one)
 EURI_API_KEY: str = os.getenv("EURI_API_KEY", "")
@@ -46,6 +54,22 @@ CORAL_BIN: str = os.getenv(
 # Demo defaults (override via env for your accounts)
 GITHUB_OWNER: str = os.getenv("GITHUB_OWNER", "")
 GITHUB_REPO: str = os.getenv("GITHUB_REPO", "devsecops-coral")
+
+# ── Write credentials (Phase 3 ACT layer) ────────────────────────────────────
+
+# GitHub — fine-grained PAT with contents:write + pull_requests:write
+GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
+
+# Jira Cloud — project admin API token
+JIRA_BASE_URL: str = os.getenv("JIRA_BASE_URL", "")
+JIRA_EMAIL: str = os.getenv("JIRA_EMAIL", "")
+JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN", "")
+JIRA_PROJECT_KEY: str = os.getenv("JIRA_PROJECT_KEY", "SEC")
+
+# Grafana Cloud — service account token with Editor role
+GRAFANA_URL: str = os.getenv("GRAFANA_URL", "")
+GRAFANA_API_KEY: str = os.getenv("GRAFANA_API_KEY", "")
+GRAFANA_DASHBOARD_UID: str = os.getenv("GRAFANA_DASHBOARD_UID", "")
 
 PACKAGE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 ECOSYSTEM_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
@@ -118,10 +142,15 @@ def parse_packages(packages: str) -> list[str]:
 
 
 def resolve_llm_provider() -> str:
-    """Resolve which LLM backend to use."""
+    """Resolve which LLM backend to use.
+
+    Priority (auto mode): anthropic → euri → cursor proxy.
+    """
     explicit = LLM_PROVIDER.strip().lower()
-    if explicit in ("euri", "cursor"):
+    if explicit in ("anthropic", "euri", "cursor"):
         return explicit
+    if ANTHROPIC_API_KEY:
+        return "anthropic"
     if EURI_API_KEY:
         return "euri"
     return "cursor"

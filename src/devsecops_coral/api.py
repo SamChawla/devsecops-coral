@@ -7,6 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from devsecops_coral.actions.executor import (
+    ActionError,
+    actions_response,
+    approve_action,
+    approve_all,
+    dismiss_action,
+    get_actions,
+    load_actions,
+)
 from devsecops_coral.agent import AgentError
 from devsecops_coral.agent import ask as run_agent_ask
 from devsecops_coral.config import parse_packages, project_root
@@ -21,6 +30,7 @@ from devsecops_coral.coral_client import (
 )
 from devsecops_coral.integrations import get_integration, list_integrations
 from devsecops_coral.models import (
+    ActionsResponse,
     AskRequest,
     AskResponse,
     CorrelateResponse,
@@ -318,11 +328,53 @@ async def api_recommend_regenerate(
     packages: str = Query(default="django,flask,requests,celery,pillow"),
     since: str = Query(default="7d"),
 ) -> RecommendResponse:
-    """Regenerate recommendations from the latest detection state."""
+    """Regenerate recommendations and refresh the in-memory action store."""
     try:
-        return run_recommend(ecosystem=ecosystem, packages=packages, since=since)
+        result = run_recommend(ecosystem=ecosystem, packages=packages, since=since)
+        load_actions(result.actions)
+        return result
     except (CoralError, ValueError) as exc:
         raise _coral_http_error(exc) from exc
+
+
+@app.get("/api/actions", response_model=ActionsResponse)
+async def api_get_actions(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery,pillow"),
+) -> ActionsResponse:
+    """Return current action list; auto-populates from recommend when empty."""
+    if not get_actions():
+        try:
+            result = run_recommend(ecosystem=ecosystem, packages=packages)
+            load_actions(result.actions)
+        except (CoralError, ValueError):
+            pass
+    return actions_response()
+
+
+@app.post("/api/actions/{action_id}/approve", response_model=RecommendedAction)
+async def api_approve_action(action_id: int) -> RecommendedAction:
+    """Approve and execute a single pending action."""
+    try:
+        return approve_action(action_id)
+    except ActionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/actions/approve-all", response_model=ActionsResponse)
+async def api_approve_all() -> ActionsResponse:
+    """Approve and execute all pending actions sequentially."""
+    approve_all()
+    return actions_response()
+
+
+@app.post("/api/actions/{action_id}/dismiss", response_model=RecommendedAction)
+async def api_dismiss_action(action_id: int) -> RecommendedAction:
+    """Dismiss a pending action without executing it."""
+    try:
+        return dismiss_action(action_id)
+    except ActionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 if FRONTEND_DIST.is_dir():
