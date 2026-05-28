@@ -18,8 +18,8 @@ import { T, GLOBAL_STYLES } from "./theme/tokens.js";
 
 const DEFAULT_FILTERS = {
   ecosystem:    "PyPI",
-  packages:     "django,flask,requests,celery,pillow",
-  since:        "7d",
+  packages:     "django,requests,pillow,celery",
+  since:        "1d",
   github_owner: "",
   github_repo:  "",
 };
@@ -72,8 +72,9 @@ export default function App() {
   const queryConsoleRef                 = useRef(null);
   // Actions tab state
   const [actions, setActions]           = useState([]);
-  const [actionsLoaded, setActionsLoaded] = useState(false);
-  const [approving, setApproving]       = useState(null); // action id being approved
+  const [actionsLoaded, setActionsLoaded]   = useState(false);
+  const [timelineLoaded, setTimelineLoaded] = useState(false);
+  const [approving, setApproving]           = useState(null); // action id being approved
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -105,6 +106,7 @@ export default function App() {
 
   const loadTimeline = useCallback(async (f) => {
     try { const d = await getTimeline(toTimelineParams(f)); setTimelineRows(d.data || []); } catch { /* surfaced */ }
+    finally { setTimelineLoaded(true); }
   }, [getTimeline]);
 
   const loadActions = useCallback(async (f) => {
@@ -117,7 +119,8 @@ export default function App() {
 
   const refreshAll = useCallback((f) => {
     loadIntegrations(); loadPosture(f); loadScan(f); loadCorrelate(f); loadTimeline(f);
-    setActionsLoaded(false); // force reload next time Actions tab opens
+    setActionsLoaded(false);
+    setTimelineLoaded(false);
   }, [loadCorrelate, loadIntegrations, loadPosture, loadScan, loadTimeline]);
 
   // Initial load
@@ -125,11 +128,11 @@ export default function App() {
     loadIntegrations(); loadPosture(DEFAULT_FILTERS); loadScan(DEFAULT_FILTERS); loadCorrelate(DEFAULT_FILTERS);
   }, [loadIntegrations, loadPosture, loadScan, loadCorrelate]);
 
-  // Lazy-load Actions and Timeline when their tab is first opened
+  // Lazy-load Actions and Timeline once — use loaded flags to avoid re-fetching
   useEffect(() => {
-    if (tab === "actions"  && !actionsLoaded) loadActions(filters);
-    if (tab === "timeline" && !timelineRows.length) loadTimeline(filters);
-  }, [tab, actionsLoaded, timelineRows.length, loadActions, loadTimeline, filters]);
+    if (tab === "actions"  && !actionsLoaded)  loadActions(filters);
+    if (tab === "timeline" && !timelineLoaded) loadTimeline(filters);
+  }, [tab, actionsLoaded, timelineLoaded, loadActions, loadTimeline, filters]);
 
   const handleFilterChange = (k, v) => setFilters((c) => ({ ...c, [k]: v }));
   const handleRunScan      = async () => { setTab("detect");  await Promise.all([loadPosture(filters), loadScan(filters), loadCorrelate(filters)]); };
@@ -386,7 +389,7 @@ export default function App() {
                 <Timeline
                   rows={timelineRows}
                   loading={loading}
-                  onRefresh={() => loadTimeline(filters)}
+                  onRefresh={() => { setTimelineLoaded(false); loadTimeline(filters); }}
                 />
               )}
             </main>

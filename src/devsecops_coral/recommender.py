@@ -14,7 +14,7 @@ from devsecops_coral.models import ActionStatus, ActionType, RecommendedAction, 
 from devsecops_coral.queries.correlate import run_correlate
 from devsecops_coral.queries.scan import run_scan
 
-_DEFAULT_PACKAGES = "django,flask,requests,celery,pillow"
+_DEFAULT_PACKAGES = "django,requests,pillow,celery"
 _DEFAULT_ECOSYSTEM = "PyPI"
 _DEFAULT_SINCE = "7d"
 

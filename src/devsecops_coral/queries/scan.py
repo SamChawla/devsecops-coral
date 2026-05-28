@@ -41,7 +41,7 @@ LEFT JOIN sentry.issues se
         OR se.culprit LIKE CONCAT('%', '{package}', '%')
     )
 ORDER BY osv.published DESC
-LIMIT 20
+LIMIT 5
 """
 
 SCAN_QUERY_OSV_ONLY = """
@@ -62,7 +62,7 @@ FROM osv.search_vulnerabilities(
     ecosystem => '{ecosystem}'
 ) osv
 ORDER BY osv.published DESC
-LIMIT 20
+LIMIT 5
 """
 
 _SCHEMA_NOT_REGISTERED = "not currently registered"

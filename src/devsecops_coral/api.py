@@ -135,7 +135,7 @@ def _validated_source_values(body: SourceConnectRequest) -> tuple[str, dict[str,
 @app.get("/api/scan", response_model=ScanResponse)
 async def api_scan(
     ecosystem: str = Query(default="PyPI"),
-    packages: str = Query(default="django,flask,requests,celery"),
+    packages: str = Query(default="django,requests,pillow,celery"),
 ) -> ScanResponse:
     """Return vulnerability scan results and the Coral SQL used."""
     try:
@@ -154,7 +154,7 @@ async def api_scan(
 @app.get("/api/correlate", response_model=CorrelateResponse)
 async def api_correlate(
     ecosystem: str = Query(default="PyPI"),
-    packages: str = Query(default="django,flask,requests,celery"),
+    packages: str = Query(default="django,requests,pillow,celery"),
     since: str = Query(default="7d"),
 ) -> CorrelateResponse:
     """Return vulnerability-error correlations and the Coral SQL used."""
@@ -300,7 +300,7 @@ async def api_remove_source(name: str) -> SourceActionResponse:
 @app.get("/api/posture", response_model=PostureResponse)
 async def api_posture(
     ecosystem: str = Query(default="PyPI"),
-    packages: str = Query(default="django,flask,requests,celery"),
+    packages: str = Query(default="django,requests,pillow,celery"),
 ) -> PostureResponse:
     """Return aggregated severity counts and untracked CVE count."""
     try:

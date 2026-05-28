@@ -6,7 +6,7 @@ from devsecops_coral.config import parse_packages
 from devsecops_coral.models import PostureResponse, QueryResult
 from devsecops_coral.queries.scan import run_scan
 
-DEFAULT_PACKAGES = "django,flask,requests,celery"
+DEFAULT_PACKAGES = "django,requests,pillow,celery"
 DEFAULT_ECOSYSTEM = "PyPI"
 
 _SEVERITY_KEYS = ("critical", "high", "medium", "low")
