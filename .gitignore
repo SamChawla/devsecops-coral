@@ -64,12 +64,13 @@ htmlcov/
 .tox/
 .nox/
 
-# ── IDE ─────────────────────────────────────
+# ── IDE & AI coding tools ───────────────────
 .idea/
 .vscode/
 *.code-workspace
 .cursor/
 .cursorrules
+.claude/
 *.swp
 *.swo
 *~
@@ -83,6 +84,24 @@ htmlcov/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# ── Node / Frontend ─────────────────────────
+frontend/node_modules/
+
+# Demo app consolidated into this repo at demo/fastapi_app/
+# (previously a separate GitHub repo — now deleted)
+demo/fastapi_app/.git
+
+# ── Project-specific local files ─────────────
+# cursor.md is a duplicate of CLAUDE.md — excluded from the repo
+cursor.md
+# ACCOUNTS.md has real service org names (Jira URL etc.) — never commit
+ACCOUNTS.md
+# UI design reference — production implementation is in frontend/src/
+ui-prototype.jsx
+# Local submission/playbook docs — keep on disk, never in git
+SHOWCASE.md
+docs/TESTING.md
 
 # ── Demo data (might contain real info) ─────
 demo/data/
