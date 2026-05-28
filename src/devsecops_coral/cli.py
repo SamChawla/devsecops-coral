@@ -29,12 +29,14 @@ from devsecops_coral.formatters import (
 from devsecops_coral.formatters.rich_output import (
     print_ask_result,
     print_correlate,
+    print_recommendations,
     print_scan,
     print_timeline,
 )
 from devsecops_coral.integrations import get_integration, list_integrations
 from devsecops_coral.llm_client import active_provider_info, check_cursor_proxy
 from devsecops_coral.queries import run_correlate, run_scan, run_timeline
+from devsecops_coral.recommender import run_recommend
 
 app = typer.Typer(
     name="devsecops-coral",
@@ -306,6 +308,31 @@ def llm_status() -> None:
     console.print("\n[dim]Usage dashboards:[/dim]")
     console.print("  Cursor: https://cursor.com/dashboard/usage")
     console.print("  EURI:   https://euron.one/euri")
+
+
+@app.command("recommend")
+def recommend(
+    ecosystem: Annotated[str, typer.Option(help="Package ecosystem")] = "PyPI",
+    packages: Annotated[
+        str, typer.Option(help="Comma-separated package names")
+    ] = "django,flask,requests,celery,pillow",
+    since: Annotated[str, typer.Option(help="Time window for Sentry correlation")] = "7d",
+    fmt: Annotated[
+        OutputFormat, typer.Option("--format", help="Output format")
+    ] = OutputFormat.rich,
+    debug: Annotated[bool, typer.Option("--debug")] = False,
+) -> None:
+    """Analyze scan results and recommend remediation actions."""
+    try:
+        result = run_recommend(ecosystem=ecosystem, packages=packages, since=since)
+    except (CoralError, ValueError) as exc:
+        _handle_error(exc, debug=debug)
+
+    if fmt == OutputFormat.json:
+        sys.stdout.write(to_json({"actions": [a.model_dump() for a in result.actions]}))
+        return
+
+    print_recommendations(result.actions)
 
 
 @app.command("serve")

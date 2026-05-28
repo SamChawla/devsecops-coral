@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -47,6 +48,49 @@ class AskRequest(BaseModel):
     query: str = Field(min_length=1)
 
 
+class ActionType(str, Enum):
+    """Type of recommended remediation action."""
+
+    CREATE_JIRA = "create_jira"
+    CREATE_PR = "create_pr"
+    CREATE_GITHUB_ISSUE = "create_github_issue"
+    ANNOTATE_GRAFANA = "annotate_grafana"
+    GENERATE_REPORT = "generate_report"
+
+
+class ActionStatus(str, Enum):
+    """Lifecycle state of a recommended action."""
+
+    PENDING = "pending"
+    EXECUTING = "executing"
+    DONE = "done"
+    DISMISSED = "dismissed"
+    FAILED = "failed"
+
+
+class RecommendedAction(BaseModel):
+    """A single agent-recommended remediation action awaiting approval."""
+
+    id: int
+    type: ActionType
+    status: ActionStatus = ActionStatus.PENDING
+    title: str
+    detail: str
+    cve: str | None = None
+    package: str | None = None
+    severity: str = "INFO"
+    urgent: bool = False
+    result: dict[str, Any] | None = None
+
+
+class RecommendResponse(BaseModel):
+    """Response for GET /api/recommend and POST /api/recommend."""
+
+    actions: list[RecommendedAction]
+    ecosystem: str
+    packages: list[str]
+
+
 class AskResponse(BaseModel):
     """Response for POST /api/ask."""
 
@@ -55,6 +99,7 @@ class AskResponse(BaseModel):
     analysis: str
     question: str
     row_count: int
+    recommendations: list[RecommendedAction] = Field(default_factory=list)
 
 
 class SourceInfo(BaseModel):

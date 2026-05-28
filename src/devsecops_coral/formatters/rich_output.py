@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -10,6 +10,9 @@ from rich.table import Table
 
 from devsecops_coral.config import SEVERITY_COLORS, SIGNAL_ICONS
 from devsecops_coral.queries.correlate import classify_signal
+
+if TYPE_CHECKING:
+    from devsecops_coral.models import RecommendedAction
 
 console = Console()
 
@@ -154,6 +157,74 @@ def print_timeline(rows: list[dict[str, Any]], *, since: str) -> None:
         if detail:
             line += f" ({detail})"
         console.print(line)
+
+
+_ACTION_TYPE_LABELS = {
+    "create_jira": "JIRA",
+    "create_pr": "GITHUB PR",
+    "create_github_issue": "GITHUB",
+    "annotate_grafana": "GRAFANA",
+    "generate_report": "REPORT",
+}
+
+_ACTION_ICONS = {
+    "create_jira": "🎫",
+    "create_pr": "🔀",
+    "create_github_issue": "🐛",
+    "annotate_grafana": "📌",
+    "generate_report": "📋",
+}
+
+
+def print_recommendations(actions: list[RecommendedAction]) -> None:
+    """Render recommended actions as a Rich terminal table.
+
+    Args:
+        actions: List of :class:`~devsecops_coral.models.RecommendedAction` objects.
+    """
+    console.print("\n[bold]🤖 Agent Recommended Actions[/bold]")
+    console.print("━" * 49)
+
+    if not actions:
+        console.print("[dim]No recommendations — all vulnerabilities appear tracked.[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("#", width=3, justify="right")
+    table.add_column("Type", width=12)
+    table.add_column("Sev", width=10)
+    table.add_column("Title")
+    table.add_column("Status", width=10)
+
+    for action in actions:
+        action_type = str(action.type.value) if hasattr(action.type, "value") else str(action.type)
+        label = _ACTION_TYPE_LABELS.get(action_type, action_type.upper())
+        icon = _ACTION_ICONS.get(action_type, "•")
+        sev = action.severity or "INFO"
+        sev_style = _severity_style(sev)
+        urgent_tag = " [bold red]URGENT[/bold red]" if action.urgent else ""
+        title = action.title + urgent_tag
+        status_style = "dim" if action.status.value == "pending" else "green"
+        table.add_row(
+            str(action.id),
+            f"{icon} {label}",
+            f"[{sev_style}]{sev}[/]",
+            title,
+            f"[{status_style}]{action.status.value.upper()}[/]",
+        )
+
+    console.print(table)
+
+    pending = sum(1 for a in actions if a.status.value == "pending")
+    urgent = sum(1 for a in actions if a.urgent)
+    console.print(
+        f"\n[bold]{pending} pending action(s)[/bold]"
+        + (f" · [bold red]{urgent} urgent[/bold red]" if urgent else "")
+    )
+    console.print(
+        "[dim]Run: devsecops-coral act --approve-all   "
+        "or visit the Actions tab in the dashboard[/dim]"
+    )
 
 
 def print_ask_result(*, question: str, sql: str, analysis: str, rows: list[dict[str, Any]]) -> None:

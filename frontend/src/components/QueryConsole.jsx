@@ -36,11 +36,51 @@ function ResultPager({ page, totalPages, setPage, totalRows }) {
   );
 }
 
+const TYPE_BADGE = {
+  create_jira: { label: "JIRA",    color: "#3b82f6" },
+  create_pr:   { label: "PR",      color: "#8b5cf6" },
+  annotate_grafana: { label: "GRAFANA", color: "#f97316" },
+  generate_report:  { label: "REPORT",  color: "#6b7280" },
+  create_github_issue: { label: "GITHUB", color: "#10b981" },
+};
+
+/** Mini action pill shown in the recommendations block. */
+function ActionPill({ action }) {
+  const badge = TYPE_BADGE[action.type] || { label: action.type.toUpperCase(), color: "#6b7280" };
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 8,
+      padding: "8px 10px",
+      background: "rgba(255,255,255,0.03)",
+      borderRadius: 6,
+      border: `1px solid rgba(255,255,255,0.07)`,
+      borderLeft: action.urgent ? "3px solid rgba(239,68,68,0.6)" : `3px solid ${badge.color}44`,
+    }}>
+      <span style={{
+        display: "inline-block", padding: "2px 7px", borderRadius: 999, fontSize: 9,
+        fontWeight: 800, fontFamily: "var(--mono, monospace)",
+        background: `${badge.color}22`, color: badge.color,
+        letterSpacing: "0.08em", flexShrink: 0, marginTop: 1,
+      }}>
+        {badge.label}
+      </span>
+      <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
+        {action.title}
+        {action.urgent && (
+          <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "#ef4444" }}>
+            URGENT
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Natural language and raw SQL query input with paginated results.
- * @param {{ onAsk: Function, onSql: Function, loading: boolean, result: object|null, seedQuery: object }} props
+ * @param {{ onAsk: Function, onSql: Function, loading: boolean, result: object|null, seedQuery: object, onSwitchTab: Function }} props
  */
-export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery }) {
+export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery, onSwitchTab }) {
   const [mode, setMode] = useState("nl");
   const [input, setInput] = useState("");
   const [page, setPage] = useState(0);
@@ -133,6 +173,51 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery 
             <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.7 }}>
               {result.analysis}
             </div>
+          </div>
+        ) : null}
+
+        {/* Agent Analysis + Recommended Actions block */}
+        {result?.recommendations?.length > 0 ? (
+          <div style={{
+            marginBottom: rows.length ? 10 : 0,
+            background: "rgba(16,185,129,0.04)",
+            borderRadius: 8,
+            border: "1px solid rgba(16,185,129,0.2)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "9px 12px",
+              borderBottom: "1px solid rgba(16,185,129,0.15)",
+              background: "rgba(16,185,129,0.08)",
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: T.green, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Agent Analysis + Recommended Actions
+              </span>
+              <span style={{ fontSize: 11, fontFamily: "var(--mono, monospace)", color: T.textMuted }}>
+                {result.recommendations.length} action(s)
+              </span>
+            </div>
+            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
+              {result.recommendations.map((action) => (
+                <ActionPill key={action.id} action={action} />
+              ))}
+            </div>
+            {onSwitchTab ? (
+              <div style={{ padding: "6px 12px 10px", borderTop: "1px solid rgba(16,185,129,0.1)" }}>
+                <button
+                  type="button"
+                  onClick={() => onSwitchTab("actions")}
+                  style={{
+                    background: "none", border: "none", padding: 0, cursor: "pointer",
+                    fontSize: 12, color: T.green, fontWeight: 600,
+                    textDecoration: "underline", textDecorationColor: "rgba(16,185,129,0.4)",
+                  }}
+                >
+                  Review in Actions tab →
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 

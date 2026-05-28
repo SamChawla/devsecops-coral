@@ -124,7 +124,15 @@ def summarize_results(question: str, sql: str, rows: list[dict[str, Any]]) -> st
 
 
 def ask(question: str) -> dict[str, Any]:
-    """Run the full ask flow: NL → SQL → execute → analyze."""
+    """Run the full ask flow: NL → SQL → execute → analyze → recommend.
+
+    Args:
+        question: Natural language security question from the user.
+
+    Returns:
+        Dict with keys: ``question``, ``sql``, ``reasoning``, ``analysis``,
+        ``rows``, ``row_count``, ``recommendations`` (list of dicts, best-effort).
+    """
     sql, reasoning = generate_sql(question)
 
     try:
@@ -134,6 +142,16 @@ def ask(question: str) -> dict[str, Any]:
         rows = execute_query(sql)
 
     analysis = summarize_results(question, sql, rows)
+
+    recommendations: list[dict[str, Any]] = []
+    try:
+        from devsecops_coral.recommender import run_recommend
+
+        rec_response = run_recommend()
+        recommendations = [a.model_dump() for a in rec_response.actions]
+    except Exception:
+        pass
+
     return {
         "question": question,
         "sql": sql,
@@ -141,4 +159,5 @@ def ask(question: str) -> dict[str, Any]:
         "analysis": analysis,
         "rows": rows,
         "row_count": len(rows),
+        "recommendations": recommendations,
     }

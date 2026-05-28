@@ -28,6 +28,8 @@ from devsecops_coral.models import (
     IntegrationInputModel,
     IntegrationsResponse,
     PostureResponse,
+    RecommendedAction,
+    RecommendResponse,
     ScanResponse,
     SourceActionResponse,
     SourceConnectRequest,
@@ -36,6 +38,7 @@ from devsecops_coral.models import (
     TimelineResponse,
 )
 from devsecops_coral.queries import run_correlate, run_posture, run_scan, run_timeline
+from devsecops_coral.recommender import run_recommend
 
 app = FastAPI(
     title="devsecops-coral",
@@ -175,17 +178,23 @@ async def api_timeline(
 
 @app.post("/api/ask", response_model=AskResponse)
 async def api_ask(body: AskRequest) -> AskResponse:
-    """Agent: natural language to SQL to results to analysis."""
+    """Agent: natural language to SQL to results to analysis, plus best-effort recommendations."""
     try:
         result = run_agent_ask(body.query)
     except (AgentError, CoralError) as exc:
         raise _coral_http_error(exc) from exc
+
+    recommendations = [
+        RecommendedAction(**r) if isinstance(r, dict) else r
+        for r in result.get("recommendations", [])
+    ]
     return AskResponse(
         data=result["rows"],
         sql=result["sql"],
         analysis=result["analysis"],
         question=result["question"],
         row_count=result["row_count"],
+        recommendations=recommendations,
     )
 
 
@@ -286,6 +295,32 @@ async def api_posture(
     """Return aggregated severity counts and untracked CVE count."""
     try:
         return run_posture(ecosystem=ecosystem, packages=packages)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+
+
+@app.get("/api/recommend", response_model=RecommendResponse)
+async def api_recommend(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery,pillow"),
+    since: str = Query(default="7d"),
+) -> RecommendResponse:
+    """Run scan + correlate and return ordered agent action recommendations."""
+    try:
+        return run_recommend(ecosystem=ecosystem, packages=packages, since=since)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+
+
+@app.post("/api/recommend", response_model=RecommendResponse)
+async def api_recommend_regenerate(
+    ecosystem: str = Query(default="PyPI"),
+    packages: str = Query(default="django,flask,requests,celery,pillow"),
+    since: str = Query(default="7d"),
+) -> RecommendResponse:
+    """Regenerate recommendations from the latest detection state."""
+    try:
+        return run_recommend(ecosystem=ecosystem, packages=packages, since=since)
     except (CoralError, ValueError) as exc:
         raise _coral_http_error(exc) from exc
 
