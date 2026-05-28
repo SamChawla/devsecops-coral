@@ -375,7 +375,11 @@ export default function App() {
 
               {/* ── Timeline tab ────────────────────────────────── */}
               {tab === "timeline" && (
-                <Timeline rows={timelineRows} loading={loading} />
+                <Timeline
+                  rows={timelineRows}
+                  loading={loading}
+                  onRefresh={() => loadTimeline(filters)}
+                />
               )}
             </main>
 

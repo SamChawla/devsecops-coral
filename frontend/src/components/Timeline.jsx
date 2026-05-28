@@ -28,9 +28,9 @@ function SourceChip({ src }) {
 
 /**
  * Chronological security event timeline across GitHub, Sentry, Jira, and Grafana.
- * @param {{ rows: Array<object>, loading: boolean }} props
+ * @param {{ rows: Array<object>, loading: boolean, onRefresh: Function }} props
  */
-export default function Timeline({ rows, loading }) {
+export default function Timeline({ rows, loading, onRefresh }) {
   const [page, setPage]                 = useState(0);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sevFilter, setSevFilter]       = useState("all");
@@ -57,9 +57,14 @@ export default function Timeline({ rows, loading }) {
       <CardHeader
         title="Security Event Timeline"
         right={
-          <span style={{ fontSize: 11, color: T.textMuted, fontFamily: T.mono }}>
-            {loading ? "building…" : `${filtered.length} / ${events.length} events`}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: T.mono }}>
+              {loading ? "building…" : `${filtered.length} / ${events.length} events`}
+            </span>
+            <ActionButton onClick={onRefresh} disabled={loading} style={{ padding: "5px 10px", fontSize: 11 }}>
+              {loading ? "Loading…" : "↻ Refresh"}
+            </ActionButton>
+          </div>
         }
       />
 
@@ -139,6 +144,23 @@ export default function Timeline({ rows, loading }) {
 
       {loading && !events.length ? (
         <EmptyState message="Building timeline…" icon="◌" />
+      ) : !events.length ? (
+        <EmptyState
+          icon="◌"
+          message={
+            <span>
+              No timeline events found.
+              <br />
+              <span style={{ fontSize: 11, color: T.textMuted, display: "block", marginTop: 6 }}>
+                Connect <strong>Jira</strong>, <strong>Sentry</strong>, or <strong>Grafana</strong> sources
+                in the sidebar to populate the timeline.
+                <br />
+                Or set <code style={{ fontFamily: "monospace" }}>GITHUB_OWNER</code> in{" "}
+                <code style={{ fontFamily: "monospace" }}>.env</code> for GitHub PR events.
+              </span>
+            </span>
+          }
+        />
       ) : !filtered.length ? (
         <EmptyState message="No events match the current filters." />
       ) : (

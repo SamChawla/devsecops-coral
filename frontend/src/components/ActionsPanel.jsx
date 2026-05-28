@@ -2,8 +2,11 @@
  * Actions tab panel — shows recommended actions with Approve / Dismiss controls.
  * Implements the human-in-the-loop approval flow from the PRD.
  */
+import { useEffect, useState } from "react";
 import { T } from "../theme/tokens.js";
 import { ActionButton, Badge, Card, CardHeader, EmptyState, Pill } from "./ui/Primitives.jsx";
+
+const PAGE_SIZE = 5;
 
 const TYPE_META = {
   create_jira:        { label: "JIRA",     icon: "🎫", color: "#3b82f6" },
@@ -129,13 +132,20 @@ function ActionRow({ action, onApprove, onDismiss, approving }) {
 }
 
 /**
- * Actions panel — lists recommended actions with approve/dismiss controls.
+ * Actions panel — lists recommended actions with approve/dismiss controls and pagination.
  * @param {{ actions: Array, loading: boolean, approving: number|null, onApprove: Function, onDismiss: Function, onApproveAll: Function, onRefresh: Function }} props
  */
 export default function ActionsPanel({ actions = [], loading, approving, onApprove, onDismiss, onApproveAll, onRefresh }) {
+  const [page, setPage] = useState(0);
+
   const pendingCount = actions.filter((a) => a.status === "pending").length;
   const doneCount    = actions.filter((a) => a.status === "done").length;
   const hasPending   = pendingCount > 0;
+  const totalPages   = Math.max(1, Math.ceil(actions.length / PAGE_SIZE));
+  const pageActions  = actions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Reset to page 0 when actions list changes (e.g. after approve-all)
+  useEffect(() => { setPage(0); }, [actions.length]);
 
   return (
     <Card
@@ -180,17 +190,47 @@ export default function ActionsPanel({ actions = [], loading, approving, onAppro
           icon={loading ? "◌" : "✓"}
         />
       ) : (
-        <div>
-          {actions.map((action) => (
-            <ActionRow
-              key={action.id}
-              action={action}
-              approving={approving}
-              onApprove={onApprove}
-              onDismiss={onDismiss}
-            />
-          ))}
-        </div>
+        <>
+          <div>
+            {pageActions.map((action) => (
+              <ActionRow
+                key={action.id}
+                action={action}
+                approving={approving}
+                onApprove={onApprove}
+                onDismiss={onDismiss}
+              />
+            ))}
+          </div>
+
+          {/* Pagination footer */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 16px", borderTop: `1px solid ${T.border}`,
+            background: T.surfaceAlt,
+          }}>
+            <span style={{ fontSize: 11, color: T.textMuted, fontFamily: "var(--mono, monospace)" }}>
+              {page + 1} / {totalPages} · {actions.length} action{actions.length !== 1 ? "s" : ""}
+              {pendingCount > 0 && ` · ${pendingCount} pending`}
+            </span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <ActionButton
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                style={{ padding: "5px 10px", fontSize: 11 }}
+              >
+                ← Prev
+              </ActionButton>
+              <ActionButton
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                style={{ padding: "5px 10px", fontSize: 11 }}
+              >
+                Next →
+              </ActionButton>
+            </div>
+          </div>
+        </>
       )}
     </Card>
   );
