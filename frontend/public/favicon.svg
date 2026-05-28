@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Dark navy background -->
+  <rect width="32" height="32" rx="7" fill="#0f172a"/>
+  <!-- Coral branch shape (orange accent #ff6b35) -->
+  <!-- Main stem -->
+  <line x1="16" y1="28" x2="16" y2="17" stroke="#ff6b35" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Left branch -->
+  <line x1="16" y1="22" x2="10" y2="16" stroke="#ff6b35" stroke-width="2" stroke-linecap="round"/>
+  <!-- Right branch -->
+  <line x1="16" y1="18" x2="22" y2="12" stroke="#ff6b35" stroke-width="2" stroke-linecap="round"/>
+  <!-- Left sub-branches -->
+  <line x1="10" y1="16" x2="7"  y2="11" stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="10" y1="16" x2="13" y2="10" stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Right sub-branches -->
+  <line x1="22" y1="12" x2="19" y2="7"  stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/>
+  <line x1="22" y1="12" x2="25" y2="7"  stroke="#ff6b35" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Tips (filled dots) -->
+  <circle cx="7"  cy="10" r="1.8" fill="#ff6b35"/>
+  <circle cx="13" cy="9"  r="1.8" fill="#ff6b35"/>
+  <circle cx="19" cy="6"  r="1.8" fill="#ff6b35"/>
+  <circle cx="25" cy="6"  r="1.8" fill="#ff6b35"/>
+</svg>
