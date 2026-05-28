@@ -45,7 +45,7 @@ CORAL_BIN: str = os.getenv(
 
 # Demo defaults (override via env for your accounts)
 GITHUB_OWNER: str = os.getenv("GITHUB_OWNER", "")
-GITHUB_REPO: str = os.getenv("GITHUB_REPO", "coral-signal-seed")
+GITHUB_REPO: str = os.getenv("GITHUB_REPO", "devsecops-coral")
 
 PACKAGE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 ECOSYSTEM_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
