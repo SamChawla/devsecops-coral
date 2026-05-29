@@ -1,10 +1,12 @@
 /**
  * Vulnerability ↔ Sentry error correlation cards with signal classification.
  */
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { T, SEV } from "../theme/tokens.js";
 import { mapCorrelateRows } from "../utils/mapData.js";
 import { ActionButton, Badge, Card, CardHeader, EmptyState, Pill } from "./ui/Primitives.jsx";
+
+export default memo(CorrelationView);
 
 const PAGE_SIZE = 6;
 
@@ -26,7 +28,7 @@ const SIG_FILTERS = [
 ];
 
 /** Card showing one CVE/error correlation with ACTIVE/MONITOR/CLEAN signal. */
-function SignalCard({ row, onFocusPackage, onAskQuestion }) {
+function SignalCard({ row, onFocusPackage, onAskQuestion, onRootCause }) {
   const [hovered, setHovered] = useState(false);
   const cfg = SIG[row.sig] || SIG.unknown;
 
@@ -55,7 +57,23 @@ function SignalCard({ row, onFocusPackage, onAskQuestion }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: T.textSecondary }}>
         <span>Errors: <strong style={{ color: row.errs > 10 ? T.red : row.errs > 0 ? T.orange : T.textMuted, fontFamily: T.mono }}>{row.errs || 0}</strong></span>
         {row.errLvl ? <span>Level: <strong>{row.errLvl}</strong></span> : null}
-        {row.pr ? <span title={row.pr}>PR: <strong style={{ color: T.purple }}>{row.pr.slice(0, 36)}{row.pr.length > 36 ? "…" : ""}</strong></span> : null}
+        {row.pr ? (
+          <span title={row.pr}>
+            PR:{" "}
+            {row.prUrl ? (
+              <a
+                href={row.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: T.purple, fontWeight: 700, textDecoration: "underline" }}
+              >
+                {row.pr.slice(0, 36)}{row.pr.length > 36 ? "…" : ""} ↗
+              </a>
+            ) : (
+              <strong style={{ color: T.purple }}>{row.pr.slice(0, 36)}{row.pr.length > 36 ? "…" : ""}</strong>
+            )}
+          </span>
+        ) : null}
         {row.summary ? <span style={{ color: T.textMuted, fontStyle: "italic" }}>{row.summary.slice(0, 80)}{row.summary.length > 80 ? "…" : ""}</span> : null}
       </div>
 
@@ -76,6 +94,17 @@ function SignalCard({ row, onFocusPackage, onAskQuestion }) {
         >
           Investigate with AI
         </ActionButton>
+        {onRootCause ? (
+          <ActionButton
+            tone="accent"
+            onClick={() => onRootCause(row)}
+            disabled={row.pkg === "-"}
+            style={{ padding: "5px 10px", fontSize: 11 }}
+            title="Correlate this CVE with Sentry errors + related GitHub PRs and explain the likely cause"
+          >
+            🔎 Root cause
+          </ActionButton>
+        ) : null}
       </div>
     </div>
   );
@@ -85,7 +114,7 @@ function SignalCard({ row, onFocusPackage, onAskQuestion }) {
  * Correlation view — maps vulns to Sentry error spikes.
  * @param {{ rows: Array<object>, loading: boolean, onFocusPackage: Function, onAskQuestion: Function }} props
  */
-export default function CorrelationView({ rows, loading, onFocusPackage, onAskQuestion }) {
+function CorrelationView({ rows, loading, onFocusPackage, onAskQuestion, onRootCause }) {
   const [page, setPage]           = useState(0);
   const [sigFilter, setSigFilter] = useState("all");
   const [sevFilter, setSevFilter] = useState("all");
@@ -202,7 +231,7 @@ export default function CorrelationView({ rows, loading, onFocusPackage, onAskQu
         <>
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, maxHeight: 460, overflowY: "auto" }}>
             {pageData.map((row, idx) => (
-              <SignalCard key={`${row.cve}-${idx}`} row={row} onFocusPackage={onFocusPackage} onAskQuestion={onAskQuestion} />
+              <SignalCard key={`${row.cve}-${idx}`} row={row} onFocusPackage={onFocusPackage} onAskQuestion={onAskQuestion} onRootCause={onRootCause} />
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderTop: `1px solid ${T.border}`, gap: 10 }}>

@@ -1,7 +1,9 @@
 /**
  * Full-width dashboard banner with branding, source chips, and theme toggle.
  */
+import { Link } from "react-router-dom";
 import { T } from "../theme/tokens.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 
 const SOURCES = [
   { label: "GitHub",  color: "#8b5cf6", icon: "◉" },
@@ -36,6 +38,7 @@ function SourceChip({ label, color, icon }) {
  * @param {{ theme: string, onToggleTheme: Function }} props
  */
 export default function DashboardHeader({ theme, onToggleTheme }) {
+  const { user, org, logout } = useAuth();
   return (
     <div style={{
       background: T.surface,
@@ -63,6 +66,7 @@ export default function DashboardHeader({ theme, onToggleTheme }) {
 
       {/* Left: name + category */}
       <div style={{ display: "flex", alignItems: "center", gap: 20, position: "relative", zIndex: 1 }}>
+        <Link to="/" title="Back to home" style={{ display: "flex", alignItems: "center", gap: 20, textDecoration: "none" }}>
         {/* Logo mark */}
         <div style={{
           width: 36, height: 36, borderRadius: 10,
@@ -103,6 +107,7 @@ export default function DashboardHeader({ theme, onToggleTheme }) {
             Security &amp; Compliance Monitor
           </div>
         </div>
+        </Link>
 
         {/* Divider */}
         <div style={{ width: 1, height: 32, background: T.border, flexShrink: 0 }} />
@@ -113,22 +118,68 @@ export default function DashboardHeader({ theme, onToggleTheme }) {
         </div>
       </div>
 
-      {/* Right: tagline + theme toggle */}
+      {/* Right: org/user + theme toggle */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 16,
+        display: "flex", alignItems: "center", gap: 12,
         position: "relative", zIndex: 1, flexShrink: 0,
       }}>
-        <div style={{
-          fontSize: 11, color: T.textMuted,
-          maxWidth: 280, lineHeight: 1.5,
-          textAlign: "right",
-          display: "none", // hidden on narrow viewports via media query fallback
-        }}
-          className="header-tagline"
+        {org && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 9,
+            padding: "5px 12px",
+            background: T.btnBase,
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+          }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: 6,
+              background: `linear-gradient(135deg, ${T.accent} 0%, #ff8555 100%)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0,
+            }}>
+              {(org.name || "?").charAt(0).toUpperCase()}
+            </div>
+            <div style={{ lineHeight: 1.2, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: T.text, letterSpacing: "-0.01em", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {org.name}
+              </div>
+              {user?.email && (
+                <div style={{ fontSize: 10, color: T.textMuted, fontFamily: T.mono, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.email}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Logout */}
+        <button
+          type="button"
+          onClick={logout}
+          title="Sign out"
+          style={{
+            padding: "7px 13px",
+            background: T.btnBase,
+            border: `1px solid ${T.border}`,
+            borderRadius: 8,
+            color: T.textSecondary,
+            fontSize: 12, fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.15s",
+            fontFamily: T.sans,
+            whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = T.borderHover;
+            e.currentTarget.style.color = T.text;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = T.border;
+            e.currentTarget.style.color = T.textSecondary;
+          }}
         >
-          Surfaces risky access changes &amp; secrets in commits.
-          Cross-references CVE databases and internal policy docs.
-        </div>
+          Sign out
+        </button>
 
         {/* Dark / Light toggle */}
         <button

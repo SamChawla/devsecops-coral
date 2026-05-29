@@ -4,35 +4,7 @@
 import { useState } from "react";
 import { T } from "../theme/tokens.js";
 import { ActionButton, Card, CardHeader, Pill } from "./ui/Primitives.jsx";
-
-const TOKENS = [
-  { re: /\b(SELECT|FROM|LEFT JOIN|JOIN|INNER JOIN|WHERE|ORDER BY|GROUP BY|HAVING|UNION ALL|AND|OR|ON|AS|LIMIT|OFFSET|DISTINCT|CASE|WHEN|THEN|ELSE|END)\b/, color: "#60a5fa" },
-  { re: /\b(osv|github|sentry|jira|grafana|coral|slack|notion)\b/,                                                                                           color: "#f97316" },
-  { re: /\b(search_vulnerabilities|vulnerability_detail|issues|pulls|events|alerts|tables|columns|table_functions)\b/,                                        color: "#a78bfa" },
-  { re: /'[^']*'/,                                                                                                                                             color: "#34d399" },
-  { re: /--.*$/,                                                                                                                                               color: "#64748b" },
-  { re: /\b(\d+)\b/,                                                                                                                                           color: "#fbbf24" },
-];
-
-/** Apply lightweight syntax highlighting to a single SQL line. */
-function tokenize(line) {
-  if (!line.trim()) return [{ text: line, color: null }];
-  const segments = [];
-  let remaining = line;
-  let safety = 0;
-  while (remaining.length > 0 && safety++ < 500) {
-    let earliest = null, earliestIndex = Infinity, earliestMatch = null;
-    for (const tok of TOKENS) {
-      const m = tok.re.exec(remaining);
-      if (m && m.index < earliestIndex) { earliest = tok; earliestIndex = m.index; earliestMatch = m; }
-    }
-    if (!earliest) { segments.push({ text: remaining, color: null }); break; }
-    if (earliestIndex > 0) segments.push({ text: remaining.slice(0, earliestIndex), color: null });
-    segments.push({ text: earliestMatch[0], color: earliest.color });
-    remaining = remaining.slice(earliestIndex + earliestMatch[0].length);
-  }
-  return segments;
-}
+import SqlCode from "./ui/SqlCode.jsx";
 
 const ACT_COMMENT_BLOCK = `
 -- ACT: The agent executes via direct API calls after approval:
@@ -55,7 +27,6 @@ export default function SqlViewer({ sql, mode = "detect" }) {
     : detectSql;
   const placeholder = !text;
   const displayText = text || "-- Run a query to see the generated Coral SQL here\n-- Cross-source JOINs will appear with full syntax highlighting";
-  const lines = displayText.split("\n");
 
   const copySql = async () => {
     if (!text) return;
@@ -83,27 +54,7 @@ export default function SqlViewer({ sql, mode = "detect" }) {
             {displayText.split("\n").map((line, i) => <div key={i}>{line}</div>)}
           </div>
         ) : (
-          <pre style={{ margin: 0, padding: "14px 0", fontSize: 12, lineHeight: 1.75, fontFamily: T.mono, overflowX: "auto", maxHeight: 360, overflowY: "auto" }}>
-            {lines.map((line, lineIdx) => {
-              const segments = tokenize(line);
-              return (
-                <div key={lineIdx} style={{ display: "flex", minHeight: "1.75em" }}>
-                  <span style={{
-                    display: "inline-block", width: 44, textAlign: "right",
-                    paddingRight: 16, color: T.textMuted, fontSize: 10,
-                    userSelect: "none", flexShrink: 0, opacity: 0.5,
-                  }}>
-                    {lineIdx + 1}
-                  </span>
-                  <span>
-                    {segments.map((seg, si) => (
-                      <span key={si} style={{ color: seg.color || T.textSecondary }}>{seg.text}</span>
-                    ))}
-                  </span>
-                </div>
-              );
-            })}
-          </pre>
+          <SqlCode text={displayText} maxHeight={360} />
         )}
       </div>
 
