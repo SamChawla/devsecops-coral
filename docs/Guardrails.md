@@ -6,7 +6,7 @@ Security, privacy, and safety guardrails for **devsecops-coral**.
 > **non-negotiable** and exist to keep secrets, employer/client information, and
 > unsafe operations out of the codebase, git history, demos, and public posts.
 
-For day-to-day AI-assisted development rules, see [`CLAUDE.md`](./CLAUDE.md).
+For day-to-day AI-assisted development rules, see [`CLAUDE.md`](../CLAUDE.md).
 This file is the human-facing summary of the same protections, plus the
 pre-commit workflow to enforce them.
 
@@ -106,7 +106,7 @@ names into the repository.
 
 ## 5. `.gitignore` enforcement
 
-The repository's [`.gitignore`](./.gitignore) is itself a guardrail. It must block:
+The repository's [`.gitignore`](../.gitignore) is itself a guardrail. It must block:
 
 - Secrets: `.env`, `.env.*` (except `.env.example`), `*.pem`, `*.key`, `secrets/`, `credentials/`
 - Coral config that may hold tokens: `.coral/`, `coral-config.yaml`

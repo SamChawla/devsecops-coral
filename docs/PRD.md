@@ -303,6 +303,30 @@ Phases are designed for **incremental commits**. Each phase is independently dem
 
 **Cross-cutting (every phase):** New or modified Python files must include docstrings (FR-9) and pass `ruff check` + `ruff format --check` before the phase commit.
 
+### Implementation Status (as of 2026-05-29)
+
+The full DETECT → RECOMMEND → ACT product is built and exercised end-to-end. Only the external submission artifacts (video, blog, Discord, bounty submission) remain.
+
+| Phase | Name | Status |
+|---|---|---|
+| 0 | Foundation | ✅ Complete |
+| 1 | DETECT Hardening | ✅ Complete |
+| 2 | RECOMMEND | ✅ Complete |
+| 3 | ACT | ✅ Complete |
+| 4 | Dashboard Agent UX | ✅ Complete |
+| 5 | Demo Polish & Submission | 🚧 In progress — code/docs done; video, blog, Discord, OSV bounty pending |
+
+**Hardening delivered beyond the original phase plan:**
+
+- **Live-schema query fixes** — `scan`/`correlate`/`timeline` adapted to the real bundled-source schemas (Jira `status_name`/`priority_name`, bounded `jql`, GitHub `user__login`) with **cascading fallbacks** so an unconfigured or schema-mismatched source degrades gracefully instead of failing the whole query.
+- **Query result cache** — short-TTL cache in `coral_client.execute_query` (env `DEVSECOPS_QUERY_CACHE_TTL`, default 90s) so the Actions/recommend path reuses the Detect tab's scan/correlate reads; explicit Refresh/Run busts the cache.
+- **Raw-SQL multi-statement support** — `/api/sql` splits on top-level semicolons (quote-aware) and runs each statement, so the generated multi-package scan SQL is runnable from the console; trailing `;` stripped and WSL stderr noise filtered.
+- **Rich Jira tickets** — descriptive titles + Atlassian Document Format body with OSV/GitHub/NVD references, severity→priority mapping with retry-without-priority fallback.
+- **Optional Sentry instrumentation** — `sentry-sdk` import/init is optional and guarded off during tests.
+- **Dashboard E2E tests** — Playwright suite (`frontend/e2e/`, 9 mocked-API tests) covering tabs, posture, scan/SQL, approve/dismiss/approve-all, and timeline.
+- **Security guardrails doc** — `docs/Guardrails.md` plus a private, gitignored denylist for the pre-commit scan.
+- **Query Console UX** — auto-growing, wrapping textarea so multi-line SQL is fully visible (Enter runs, Shift+Enter newline).
+
 ### Phase 0 — Foundation (COMPLETE ✅)
 
 **Goal:** Coral reads 5 sources; dashboard displays detection data.
@@ -322,24 +346,24 @@ Phases are designed for **incremental commits**. Each phase is independently dem
 
 ---
 
-### Phase 1 — DETECT Hardening
+### Phase 1 — DETECT Hardening (COMPLETE ✅)
 
 **Goal:** Detection queries reliably surface the demo story (untracked CVEs, active exploitation, tracked fixes).
 
 **Backend:**
-- [ ] Refine `queries/scan.py` — untracked CVE detection via LEFT JOIN on Jira (NULL ticket)
-- [ ] Refine `queries/correlate.py` — temporal window for Sentry error spikes
-- [ ] Add `queries/untracked.py` or extend scan with explicit untracked filter
-- [ ] Posture endpoint returns `untracked_count` alongside severity buckets
-- [ ] Demo seed data aligned to prototype: django (SEC-1 In Progress), requests + pillow (untracked), pillow (12 errors)
+- [x] Refine `queries/scan.py` — untracked CVE detection via LEFT JOIN on Jira (NULL ticket)
+- [x] Refine `queries/correlate.py` — temporal window for Sentry error spikes
+- [x] Add `queries/untracked.py` or extend scan with explicit untracked filter
+- [x] Posture endpoint returns `untracked_count` alongside severity buckets
+- [x] Demo seed data aligned to prototype: django (SEC-1 In Progress), requests + pillow (untracked), pillow (12 errors)
 
 **Frontend:**
-- [ ] Posture card shows untracked count with orange highlight when > 0
-- [ ] Scan table highlights UNTRACKED rows; error column bold when > 10
+- [x] Posture card shows untracked count with orange highlight when > 0
+- [x] Scan table highlights UNTRACKED rows; error column bold when > 10
 
 **Demo scenarios:**
-- [ ] `demo/scenarios/untracked_cves.md` — requests + pillow untracked
-- [ ] `demo/scenarios/active_exploitation.md` — pillow + 12 Sentry errors
+- [x] `demo/scenarios/untracked_cves.md` — requests + pillow untracked
+- [x] `demo/scenarios/active_exploitation.md` — pillow + 12 Sentry errors
 
 **Acceptance criteria:**
 ```bash
@@ -351,8 +375,8 @@ ruff check src/ tests/ && ruff format --check src/ tests/
 ```
 
 **Code quality:**
-- [ ] Docstrings on modified query builders and API handlers touched in this phase
-- [ ] `ruff check` + `ruff format` clean on changed files
+- [x] Docstrings on modified query builders and API handlers touched in this phase
+- [x] `ruff check` + `ruff format` clean on changed files
 
 **Commit message:** `feat(detect): untracked CVE queries and posture untracked count`
 
@@ -360,12 +384,12 @@ ruff check src/ tests/ && ruff format --check src/ tests/
 
 ---
 
-### Phase 2 — RECOMMEND (Agent Analysis Layer)
+### Phase 2 — RECOMMEND (Agent Analysis Layer) (COMPLETE ✅)
 
 **Goal:** Agent analyzes detection results and produces structured, typed action recommendations.
 
 **Backend:**
-- [ ] New module: `src/devsecops_coral/recommender.py`
+- [x] New module: `src/devsecops_coral/recommender.py`
   - Input: scan + correlate + posture results
   - Output: list of `RecommendedAction` objects (Pydantic model)
   - Rule-based engine first (deterministic, demo-safe):
@@ -375,17 +399,17 @@ ruff check src/ tests/ && ruff format --check src/ tests/
     - Any remediation started → `annotate_grafana`
     - Always → `generate_report`
   - LLM enhancement: Claude analyzes gaps and enriches rationale text
-- [ ] Extend `agent.py` — NL queries return detection + recommendations
-- [ ] `GET /api/recommend` — regenerate from current state
-- [ ] Extend `POST /api/ask` — response includes `recommendations[]`
-- [ ] Pydantic models: `RecommendedAction`, `ActionType`, `ActionStatus` (pending only at this phase)
+- [x] Extend `agent.py` — NL queries return detection + recommendations
+- [x] `GET /api/recommend` — regenerate from current state
+- [x] Extend `POST /api/ask` — response includes `recommendations[]`
+- [x] Pydantic models: `RecommendedAction`, `ActionType`, `ActionStatus` (pending only at this phase)
 
 **CLI:**
-- [ ] `devsecops-coral recommend` — print recommended actions table
+- [x] `devsecops-coral recommend` — print recommended actions table
 
 **Frontend:**
-- [ ] Query console shows "Agent Analysis + Recommended Actions" block (prototype pattern)
-- [ ] Link text: "Switch to Actions tab to review and approve"
+- [x] Query console shows "Agent Analysis + Recommended Actions" block (prototype pattern)
+- [x] Link text: "Switch to Actions tab to review and approve"
 
 **Acceptance criteria:**
 ```bash
@@ -402,34 +426,34 @@ ruff check src/devsecops_coral/recommender.py src/devsecops_coral/agent.py
 
 ---
 
-### Phase 3 — ACT (Action Executor with Approval)
+### Phase 3 — ACT (Action Executor with Approval) (COMPLETE ✅)
 
 **Goal:** Approved actions execute via direct REST APIs. Human-in-the-loop is mandatory.
 
 **Backend:**
-- [ ] New module: `src/devsecops_coral/actions/` (keep files under 200 lines each)
+- [x] New module: `src/devsecops_coral/actions/` (keep files under 200 lines each)
   - `jira.py` — `create_issue(summary, description, priority, labels)` → ticket key
   - `github.py` — `create_pull_request(branch, title, body, file_changes)` → PR URL
   - `github.py` — `create_issue(title, body, labels)` → issue URL (P1)
   - `grafana.py` — `create_annotation(text, tags, time)` → annotation ID
   - `report.py` — `generate_markdown(findings)` → file path
   - `executor.py` — orchestrates approve/dismiss/approve-all; updates action status
-- [ ] In-memory action store (session-scoped; no DB needed for hackathon)
-- [ ] Config: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`
-- [ ] Config: `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`
-- [ ] Config: `GRAFANA_URL`, `GRAFANA_API_KEY`, `GRAFANA_DASHBOARD_UID`
-- [ ] API endpoints: approve, approve-all, dismiss (FR-7.7–7.10)
-- [ ] Return execution results: `{ "ticket": "SEC-9", "url": "..." }`
+- [x] In-memory action store (session-scoped; no DB needed for hackathon)
+- [x] Config: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`
+- [x] Config: `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO`
+- [x] Config: `GRAFANA_URL`, `GRAFANA_API_KEY`, `GRAFANA_DASHBOARD_UID`
+- [x] API endpoints: approve, approve-all, dismiss (FR-7.7–7.10)
+- [x] Return execution results: `{ "ticket": "SEC-9", "url": "..." }`
 
 **CLI:**
-- [ ] `devsecops-coral act --approve 2`
-- [ ] `devsecops-coral act --approve-all`
-- [ ] `devsecops-coral act --list`
+- [x] `devsecops-coral act --approve 2`
+- [x] `devsecops-coral act --approve-all`
+- [x] `devsecops-coral act --list`
 
 **Tests:**
-- [ ] Mock httpx at action module level (not HTTP layer)
-- [ ] Test each action type with fixture responses
-- [ ] Test approval gate — unapproved actions never execute
+- [x] Mock httpx at action module level (not HTTP layer)
+- [x] Test each action type with fixture responses
+- [x] Test approval gate — unapproved actions never execute
 
 **Acceptance criteria:**
 ```bash
@@ -447,7 +471,7 @@ ruff check src/devsecops_coral/actions/
 
 ---
 
-### Phase 4 — Dashboard Agent UX
+### Phase 4 — Dashboard Agent UX (COMPLETE ✅)
 
 **Goal:** Port prototype **features** into the existing CoralSentinel shell — not a visual redesign.
 
@@ -469,30 +493,30 @@ ruff check src/devsecops_coral/actions/
 | Footer | Sidebar "hackathon · 2026" only | Main footer with agent tagline |
 
 **New component: `ActionsPanel.jsx`** (prototype behavior, production styling):
-- [ ] Card with accent glow when pending actions exist (reuse `Card accent={T.accent}`)
-- [ ] Header: "Recommended Actions" + `{doneCount} completed` Pill + **Approve All (N)** `ActionButton`
-- [ ] Action row per recommendation:
+- [x] Card with accent glow when pending actions exist (reuse `Card accent={T.accent}`)
+- [x] Header: "Recommended Actions" + `{doneCount} completed` Pill + **Approve All (N)** `ActionButton`
+- [x] Action row per recommendation:
   - Type icon + `Pill` badge: JIRA · GITHUB PR · GRAFANA · REPORT
   - `Badge` for severity (skip for INFO actions)
   - Title (13px semibold) + detail text (12px secondary)
   - Status line: `⟳ Executing...` (accent mono) or `✓ Executed` (green)
   - Pending only: **Approve** (`ActionButton tone="accent"`) + **Dismiss** (ghost)
-- [ ] Row background shifts by status: pending → executing (accent tint) → done (green tint) → dismissed (40% opacity)
-- [ ] Wire to `/api/actions`, `/api/recommend`, approve / approve-all / dismiss
+- [x] Row background shifts by status: pending → executing (accent tint) → done (green tint) → dismissed (40% opacity)
+- [x] Wire to `/api/actions`, `/api/recommend`, approve / approve-all / dismiss
 
 **Detect tab refinements:**
-- [ ] Keep `PostureOverview` + `CommandBar` above tab content (always visible)
-- [ ] Stack `ScanTable` then `CorrelationView` (replaces separate Correlate tab)
-- [ ] Bottom grid: `SqlViewer` | `QueryConsole` (2-column, existing gap/spacing)
+- [x] Keep `PostureOverview` + `CommandBar` above tab content (always visible)
+- [x] Stack `ScanTable` then `CorrelationView` (replaces separate Correlate tab)
+- [x] Bottom grid: `SqlViewer` | `QueryConsole` (2-column, existing gap/spacing)
 
 **QueryConsole extension (Phase 2 backend, Phase 4 UI):**
-- [ ] When `result.analysis` or `result.recommendations` present, show green-bordered block:
+- [x] When `result.analysis` or `result.recommendations` present, show green-bordered block:
   - Label: "Agent Analysis + Recommended Actions"
   - Body: analysis text
   - Link/button: "Review in Actions tab →" (switches tab)
 
 **SqlViewer on Actions tab:**
-- [ ] Show last DETECT SQL + commented ACT block (from prototype `SQL_EXAMPLES.act` pattern):
+- [x] Show last DETECT SQL + commented ACT block (from prototype `SQL_EXAMPLES.act` pattern):
   ```
   -- The agent then ACTS via direct API calls:
   -- 1. POST /rest/api/3/issue → Create Jira SEC-8
@@ -501,10 +525,10 @@ ruff check src/devsecops_coral/actions/
   ```
 
 **App.jsx changes:**
-- [ ] Update `TABS` constant: `{ id: "detect", label: "Detect", desc: "Scan & Correlate" }`, etc.
-- [ ] Tab bar keeps current sticky header styling (bottom border accent, mono icon)
-- [ ] Add main-area footer below `<main>` with tagline in `T.mono` 11px
-- [ ] `useApi.js`: `getActions`, `getRecommend`, `approveAction`, `approveAllActions`, `dismissAction`
+- [x] Update `TABS` constant: `{ id: "detect", label: "Detect", desc: "Scan & Correlate" }`, etc.
+- [x] Tab bar keeps current sticky header styling (bottom border accent, mono icon)
+- [x] Add main-area footer below `<main>` with tagline in `T.mono` 11px
+- [x] `useApi.js`: `getActions`, `getRecommend`, `approveAction`, `approveAllActions`, `dismissAction`
 
 **Acceptance criteria:**
 - Visual regression: dashboard still looks like CoralSentinel (sidebar, header, tokens)
@@ -519,17 +543,19 @@ ruff check src/devsecops_coral/actions/
 
 ---
 
-### Phase 5 — Demo Polish & Submission
+### Phase 5 — Demo Polish & Submission (IN PROGRESS 🚧)
 
 **Goal:** 3-minute demo script, docs, video, blog — submission-ready.
 
+**Status:** Code, docstrings, full ruff pass, README, and docs are done. Remaining: end-to-end demo script, demo video, Medium blog, Discord showcase, and OSV bounty submission.
+
 **Deliverables:**
 - [ ] End-to-end demo script (see Section 10)
-- [ ] `docs/TESTING.md` — add action approval test steps + ruff commands
-- [ ] `SHOWCASE.md` — update narrative for agent workflow
-- [ ] README — lead with DETECT → RECOMMEND → ACT, not "dashboard"
-- [ ] **Backfill docstrings** on all remaining `src/devsecops_coral/` modules
-- [ ] **Full ruff pass:** `ruff check src/ tests/` and `ruff format src/ tests/`
+- [x] `docs/TESTING.md` — add action approval test steps + ruff commands
+- [x] `SHOWCASE.md` — update narrative for agent workflow
+- [x] README — lead with DETECT → RECOMMEND → ACT, not "dashboard"
+- [x] **Backfill docstrings** on all remaining `src/devsecops_coral/` modules
+- [x] **Full ruff pass:** `ruff check src/ tests/` and `ruff format src/ tests/`
 - [ ] Record 3–5 minute demo video
 - [ ] Medium blog post
 - [ ] Discord showcase + social posts
@@ -548,11 +574,11 @@ ruff check src/devsecops_coral/actions/
 | Phase | Name | Key Deliverable | Demoable As |
 |---|---|---|---|
 | **0** ✅ | Foundation | Coral reads + dashboard | "Here's what Coral found" |
-| **1** | DETECT Hardening | Untracked CVEs + active exploitation queries | "2 untracked, 1 active exploitation" |
-| **2** | RECOMMEND | Agent recommendation engine | "Agent recommends 5 actions" |
-| **3** | ACT | Approved API execution | "SEC-9 created in Jira" |
-| **4** | Dashboard UX | Actions tab + approve flow | Full agent workflow in UI |
-| **5** | Demo Polish | Video, blog, submission | 3-minute judge demo |
+| **1** ✅ | DETECT Hardening | Untracked CVEs + active exploitation queries | "2 untracked, 1 active exploitation" |
+| **2** ✅ | RECOMMEND | Agent recommendation engine | "Agent recommends 5 actions" |
+| **3** ✅ | ACT | Approved API execution | "SEC-9 created in Jira" |
+| **4** ✅ | Dashboard UX | Actions tab + approve flow | Full agent workflow in UI |
+| **5** 🚧 | Demo Polish | Video, blog, submission | 3-minute judge demo |
 
 **Total estimated effort (Phases 1–5):** ~22–28 hours
 

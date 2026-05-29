@@ -43,6 +43,14 @@ Engineer clicks Approve All → done in 30 seconds.
 
 ---
 
+## Documentation
+
+- [Setup guide](docs/SETUP.md) — install Coral, connect sources, seed demo data
+- [Product requirements (PRD)](docs/PRD.md) — full feature spec and phases
+- [Guardrails](docs/Guardrails.md) — security, privacy, and safety rules
+
+---
+
 ## Quick start
 
 ### Prerequisites
@@ -131,6 +139,26 @@ devsecops-coral serve
 - **Detect** — Scan vulnerabilities (OSV × Jira × Sentry), correlation view, SQL viewer, query console
 - **Actions** — Recommended actions with Approve / Dismiss / Approve All
 - **Timeline** — Chronological events across all sources
+
+### Complete flow (DETECT → RECOMMEND → ACT)
+
+Whether you drive it from the dashboard or the CLI, the workflow is the same:
+
+1. **DETECT** — `scan` + `correlate` run cross-source Coral SQL to surface untracked CVEs and active exploitation (CVE + Sentry error spikes in the same window).
+2. **RECOMMEND** — `recommend` analyzes the detection results and produces a typed, ordered action list (create Jira, draft PR, annotate Grafana, generate report), flagging urgent items.
+3. **ACT** — you approve actions (`act --approve`, `--approve-all`, or the Actions tab). Only approved actions execute, via direct REST calls. Coral itself stays read-only.
+
+```bash
+# CLI end-to-end
+devsecops-coral scan --packages django,requests,pillow,celery
+devsecops-coral recommend --packages django,requests,pillow,celery
+devsecops-coral act --list
+devsecops-coral act --approve-all
+```
+
+> Performance: identical Coral reads are cached for `DEVSECOPS_QUERY_CACHE_TTL`
+> seconds (default 90) so opening Actions reuses the Detect reads. Refresh / Run
+> buttons bust the cache. Set the env var to `0` to disable caching.
 
 ### CLI
 
@@ -226,22 +254,46 @@ The OSV custom source spec (`sources/osv/osv.yaml`) is submitted separately for 
 
 ---
 
-## Development
+## Development & testing
 
 ```bash
 # Install dev dependencies
 pip install -e ".[dev]"
+```
 
-# Run tests
-pytest tests/
+### Backend tests (pytest)
 
-# Lint and format
+Coral is mocked at the `coral_client` level, so these run offline with no Coral
+connection or credentials:
+
+```bash
+pytest tests/          # unit + API tests
+```
+
+### Frontend E2E tests (Playwright)
+
+The dashboard suite mocks every `/api/*` call with deterministic fixtures, so it
+verifies UI rendering and the approve / dismiss / approve-all flow without a
+running backend or live Coral. Playwright auto-starts the Vite dev server.
+
+```bash
+cd frontend
+npm install
+npx playwright install chromium   # one-time browser download
+npm run test:e2e                  # headless
+npm run test:e2e:ui               # interactive runner
+```
+
+### Lint, format & build
+
+```bash
 ruff check src/ tests/
 ruff format src/ tests/
 
-# Build frontend
-cd frontend && npm install && npm run build
+cd frontend && npm run build       # production bundle → frontend/dist/
 ```
+
+All three suites should be green before submitting: `pytest` (backend), `npm run test:e2e` (dashboard), and `ruff check` (lint).
 
 ---
 

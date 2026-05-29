@@ -100,7 +100,7 @@ playwright-report/
 demo/fastapi_app/.git
 
 # ── Guardrails private denylist (sensitive terms) ──
-# One employer/client codename per line — read by the pre-commit scan in Guardrails.md
+# One employer/client codename per line — read by the pre-commit scan in docs/Guardrails.md
 .guardrails-denylist.txt
 
 # ── Project-specific local files ─────────────
