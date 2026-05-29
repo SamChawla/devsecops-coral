@@ -10,6 +10,18 @@
 
 ---
 
+## Screenshots
+
+![CoralSentinel security command center — the Detect tab showing severity posture cards (CRITICAL/HIGH/MEDIUM/LOW), five connected data sources, and the cross-source vulnerability scan table](media/images/coral_dashboard.png)
+
+*Security command center — live severity posture, five sources joined in one Coral SQL query, and untracked-CVE detection in the scan table.*
+
+![CoralSentinel landing page with the hero headline "From scattered alerts to one security verdict" and a live active-exploitation example card](media/images/coral_landing_page.png)
+
+*Landing page — the DETECT → RECOMMEND → ACT pitch, with a real active-exploitation example (pillow CVE correlated to 12 fatal Sentry errors).*
+
+---
+
 ## What it does
 
 Security and DevOps teams waste 30–60 minutes per incident manually correlating signals across 4–6 different tools. **CoralSentinel** replaces that with one agent workflow:
