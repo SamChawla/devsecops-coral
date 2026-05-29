@@ -71,7 +71,7 @@ cp /root/.local/bin/coral /usr/local/bin/coral
 ### Install
 
 ```bash
-git clone https://github.com/SamChawla/devsecops-coral.git
+git clone <your-fork-url> devsecops-coral
 cd devsecops-coral
 pip install -e .
 devsecops-coral --version   # should print 0.1.0
@@ -134,6 +134,44 @@ Or serve the pre-built frontend:
 devsecops-coral serve
 # Open http://localhost:8000
 ```
+
+The app opens on a **landing page** that explains the DETECT → RECOMMEND → ACT
+workflow. From there:
+
+- **`/`** — landing / product overview (public)
+- **`/signup`** — create an **organization** workspace (you become its first member)
+- **`/login`** — sign in to an existing organization
+- **`/app`** — the dashboard (protected; redirects to `/login` when signed out)
+
+#### Sign in & organizations
+
+The dashboard ships a lightweight, org-scoped auth layer:
+
+- Passwords are hashed with PBKDF2 (stdlib only — no extra dependencies).
+- Users, organizations, and sessions live in a small SQLite database
+  (`AUTH_DB_PATH`, default `./data/auth.db`).
+- Sessions are opaque tokens carried in an **httpOnly cookie** (never
+  localStorage), set and cleared by the backend.
+
+Auth is enabled by default. For local CLI-only use you can run the API open
+with `DEVSECOPS_AUTH_ENABLED=0` (this also keeps the test suite running without
+sessions).
+
+**Start fresh for a demo** — wipe accounts and generated reports, then restart:
+
+```bash
+# Stop the server first, then:
+devsecops-coral reset            # clears accounts/orgs/sessions + reports (asks to confirm)
+devsecops-coral reset --yes      # no prompt
+devsecops-coral reset --keep-accounts   # only clear generated reports
+
+devsecops-coral serve            # restart — also empties the action store + query cache
+```
+
+> Tenancy note: Coral itself is a single host install, so organizations scope
+> the **users and sessions** of the dashboard. The connected Coral sources are
+> shared by everyone on that deployment — this is a team command center, not a
+> per-tenant data warehouse.
 
 **Tabs:**
 - **Detect** — Scan vulnerabilities (OSV × Jira × Sentry), correlation view, SQL viewer, query console
@@ -203,6 +241,46 @@ GRAFANA_DASHBOARD_UID=your-uid
 
 ---
 
+## Deploy
+
+The whole thing — built React dashboard, FastAPI backend, and the Coral CLI —
+ships as a **single Docker container** that serves one URL.
+
+```bash
+# Build
+docker build -t devsecops-coral .
+
+# Run (persist users/orgs/sessions in a named volume)
+docker run -p 8000:8000 \
+  -v coral-data:/app/data \
+  -e DEVSECOPS_AUTH_ENABLED=1 \
+  -e SESSION_COOKIE_SECURE=1 \
+  devsecops-coral
+# Open http://localhost:8000
+```
+
+The image is multi-stage: stage 1 builds `frontend/dist`, stage 2 installs the
+Coral CLI plus the Python package and runs `devsecops-coral serve`. It honors a
+`PORT` env var, so it drops straight onto container hosts:
+
+| Host | How |
+|---|---|
+| **Render** | New Web Service → "Deploy from Dockerfile". Add env vars + a disk mounted at `/app/data`. |
+| **Railway** | New service from repo → Dockerfile builder. Add a volume at `/app/data`. |
+| **Fly.io** | `fly launch` (detects the Dockerfile) → add a volume mounted at `/app/data`. |
+
+Set your source credentials (GitHub / Jira / Sentry / Grafana tokens) and LLM
+key as env vars in the host's dashboard, and turn on `SESSION_COOKIE_SECURE=1`
+once you're behind HTTPS.
+
+> **Why not Vercel/Netlify?** The backend reads data by shelling out to the
+> Coral CLI as a subprocess. Serverless platforms can't run that binary, so the
+> live data path won't work there. Use a container host (above) that can run
+> Coral. You *can* host the static frontend on Vercel, but it still needs a
+> container-hosted backend to talk to.
+
+---
+
 ## Architecture
 
 ```
@@ -220,7 +298,8 @@ Grafana + (custom OSV source)     builds action list   Local Markdown report
 ```
 src/devsecops_coral/
 +-- cli.py              # scan, correlate, timeline, recommend, act, ask, serve
-+-- api.py              # FastAPI - all REST endpoints
++-- api.py              # FastAPI - all REST endpoints (data + /api/auth/*)
++-- auth.py             # org-scoped login (SQLite + PBKDF2 + httpOnly sessions)
 +-- recommender.py      # rule-based action recommendation engine
 +-- agent.py            # LLM NL -> SQL + analysis
 +-- coral_client.py     # sole Coral CLI wrapper (read-only)

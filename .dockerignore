@@ -1,0 +1,44 @@
+# Keep the build context small and free of secrets.
+
+# Secrets & local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+.coral/
+
+# Auth / app data (regenerated at runtime)
+data/
+*.db
+*.sqlite3
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Frontend deps & build output (rebuilt inside the image)
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+
+# VCS / IDE / tooling
+.git/
+.github/
+.idea/
+.vscode/
+.cursor/
+
+# Docs, reports, logs not needed in the image
+reports/
+*.log
