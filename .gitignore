@@ -112,6 +112,7 @@ ACCOUNTS.md
 ui-prototype.jsx
 # Local submission/playbook docs — keep on disk, never in git
 SHOWCASE.md
+Script.md
 docs/TESTING.md
 
 # ── Demo data (might contain real info) ─────
@@ -119,6 +120,12 @@ demo/data/
 demo/*.sqlite3
 demo/**/*.db
 demo/**/output/
+
+# ── Auth / app data (SQLite users, orgs & sessions) ──
+# Never commit the auth database — it holds password hashes and session tokens.
+data/
+*.db
+*.sqlite3
 
 # ── Generated reports (ACT generate_report output) ──
 reports/
