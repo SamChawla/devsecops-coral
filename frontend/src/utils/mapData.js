@@ -34,9 +34,29 @@ export function mapCorrelateRows(rows) {
     errLvl: row.error_level || "-",
     sig: row.signal || "unknown",
     pr: row.pr_title || null,
-    author: row.author || null,
+    prUrl: row.pr_url || null,
+    author: row.pr_author || row.author || null,
     summary: row.summary || row.error_title || "",
   }));
+}
+
+/**
+ * Normalize GitHub PR API rows for the GithubPrs panel.
+ * @param {Array<object>} rows - Raw /api/github-prs data rows.
+ * @returns {Array<object>} Display-shaped PR rows.
+ */
+export function mapGithubPrRows(rows) {
+  return (rows || []).map((row) => {
+    const merged = row.merged_at ? String(row.merged_at).slice(0, 10) : null;
+    return {
+      number: row.number ?? null,
+      title: row.title || "(untitled PR)",
+      author: row.author || "unknown",
+      state: (row.state || (merged ? "merged" : "open")).toLowerCase(),
+      merged,
+      url: row.url || null,
+    };
+  });
 }
 
 const SENTRY_LEVEL_TO_SEV = {

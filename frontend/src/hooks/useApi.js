@@ -9,7 +9,9 @@ const API_BASE = "";
  * @param {RequestInit} [options] - Fetch options.
  * @returns {Promise<object>} Parsed JSON body.
  */
-async function fetchJson(path, options = {}) {  const resp = await fetch(`${API_BASE}${path}`, {
+async function fetchJson(path, options = {}) {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
     headers: { "Content-Type": "application/json", ...options.headers },
     ...options,
   });
@@ -93,6 +95,13 @@ export function useApi() {
     },
     [request],
   );
+  const getGithubPrs = useCallback(
+    (params = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request(`/api/github-prs?${qs}`);
+    },
+    [request],
+  );
   const postAsk = useCallback(
     (query) =>
       request("/api/ask", { method: "POST", body: JSON.stringify({ query }) }),
@@ -101,6 +110,14 @@ export function useApi() {
   const postSql = useCallback(
     (query) =>
       request("/api/sql", { method: "POST", body: JSON.stringify({ query }) }),
+    [request],
+  );
+  const postRootCause = useCallback(
+    ({ cve, package: pkg, ecosystem, since } = {}) =>
+      request("/api/root-cause", {
+        method: "POST",
+        body: JSON.stringify({ cve, package: pkg, ecosystem, since }),
+      }),
     [request],
   );
   const connectSource = useCallback(
@@ -162,8 +179,10 @@ export function useApi() {
     getScan,
     getCorrelate,
     getTimeline,
+    getGithubPrs,
     postAsk,
     postSql,
+    postRootCause,
     connectSource,
     testSource,
     removeSource,

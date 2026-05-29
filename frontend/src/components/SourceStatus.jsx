@@ -1,9 +1,11 @@
 /**
  * Sidebar source manager — lists integrations, credential forms, and connect/test/remove actions.
  */
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { T, SOURCE_META, SRC_CLR } from "../theme/tokens.js";
 import { ActionButton } from "./ui/Primitives.jsx";
+
+export default memo(SourceStatus);
 
 /**
  * Clickable row in the source list sidebar.
@@ -67,7 +69,7 @@ function SourceItem({ source, active, onSelect }) {
  * Coral data source connection panel for the dashboard sidebar.
  * @param {{ sources: Array<object>, loading: boolean, busySource: string, actionMessage: string, onConnect: Function, onTest: Function, onRemove: Function }} props
  */
-export default function SourceStatus({ sources, loading, busySource, actionMessage, onConnect, onTest, onRemove }) {
+function SourceStatus({ sources, loading, busySource, actionMessage, onConnect, onTest, onRemove }) {
   const list = sources || [];
   const connectedCount = list.filter((s) => s.connected).length;
   const [selectedName, setSelectedName] = useState(list[0]?.name || "");

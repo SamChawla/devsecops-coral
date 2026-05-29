@@ -4,6 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { T } from "../theme/tokens.js";
 import { ActionButton, Card, CardHeader } from "./ui/Primitives.jsx";
+import Markdown from "./ui/Markdown.jsx";
+import SqlCode from "./ui/SqlCode.jsx";
 
 const PAGE_SIZE = 8;
 
@@ -84,6 +86,8 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
   const [mode, setMode] = useState("nl");
   const [input, setInput] = useState("");
   const [page, setPage] = useState(0);
+  const [resultTab, setResultTab] = useState("analysis");
+  const [copied, setCopied] = useState(false);
   const taRef = useRef(null);
 
   useEffect(() => {
@@ -104,6 +108,33 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
   const columns = useMemo(() => (rows.length > 0 ? Object.keys(rows[0]) : []), [rows]);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const hasAnalysis = Boolean(result?.analysis);
+  const hasSql = Boolean(result?.sql);
+  const tabs = useMemo(() => {
+    const t = [];
+    if (hasAnalysis) t.push(["analysis", "Analysis"]);
+    if (hasSql) t.push(["sql", "Coral SQL"]);
+    if (rows.length) t.push(["results", `Results · ${rows.length}`]);
+    return t;
+  }, [hasAnalysis, hasSql, rows.length]);
+
+  // When a fresh result arrives, focus the most relevant tab.
+  useEffect(() => {
+    if (!result) return;
+    if (result.analysis) setResultTab("analysis");
+    else if (result.data?.length) setResultTab("results");
+    else if (result.sql) setResultTab("sql");
+  }, [result]);
+
+  const copySql = async () => {
+    if (!result?.sql) return;
+    try {
+      await navigator.clipboard.writeText(result.sql);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* ignore */ }
+  };
 
   const run = () => {
     if (!input.trim() || loading) return;
@@ -185,19 +216,89 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
           ))}
         </div>
 
-        {/* Analysis */}
-        {result?.analysis ? (
+        {/* Tabbed result panel — Analysis · Coral SQL · Results */}
+        {tabs.length > 0 ? (
           <div style={{
-            padding: 12, marginBottom: rows.length ? 10 : 0,
-            background: "rgba(16,185,129,0.06)",
+            marginBottom: 10,
+            border: `1px solid ${T.border}`,
             borderRadius: 8,
-            border: "1px solid rgba(16,185,129,0.18)",
+            overflow: "hidden",
           }}>
-            <div style={{ fontSize: 10, color: T.green, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>
-              Analysis
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 8, padding: "6px 8px",
+              borderBottom: `1px solid ${T.border}`,
+              background: T.surfaceAlt,
+            }}>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {tabs.map(([id, label]) => (
+                  <ActionButton
+                    key={id}
+                    onClick={() => setResultTab(id)}
+                    active={resultTab === id}
+                    style={{ padding: "5px 10px", fontSize: 11 }}
+                  >
+                    {label}
+                  </ActionButton>
+                ))}
+              </div>
+              {resultTab === "sql" && hasSql ? (
+                <ActionButton onClick={copySql} style={{ padding: "5px 10px", fontSize: 11 }}>
+                  {copied ? "✓ Copied" : "Copy SQL"}
+                </ActionButton>
+              ) : null}
             </div>
-            <div style={{ fontSize: 13, color: T.textSecondary, lineHeight: 1.7 }}>
-              {result.analysis}
+
+            <div style={{ padding: resultTab === "sql" ? 0 : 12 }}>
+              {/* Analysis tab */}
+              {resultTab === "analysis" && hasAnalysis ? (
+                <Markdown text={result.analysis} />
+              ) : null}
+
+              {/* Coral SQL tab */}
+              {resultTab === "sql" && hasSql ? (
+                <SqlCode text={result.sql} maxHeight={320} />
+              ) : null}
+
+              {/* Results tab */}
+              {resultTab === "results" && rows.length > 0 ? (
+                <>
+                  <div style={{ overflowX: "auto", borderRadius: 8, border: `1px solid ${T.border}` }}>
+                    <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: T.mono }}>
+                        <thead>
+                          <tr style={{
+                            borderBottom: `1px solid ${T.border}`,
+                            position: "sticky", top: 0,
+                            background: T.surfaceAlt,
+                          }}>
+                            {columns.map((col) => (
+                              <th key={col} style={{ padding: "8px 10px", textAlign: "left", color: T.textMuted, fontWeight: 600 }}>
+                                {col}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pageRows.map((row, ri) => (
+                            <tr key={`${page}-${ri}`} style={{ borderBottom: `1px solid ${T.border}` }}>
+                              {columns.map((col) => (
+                                <td key={col}
+                                  style={{ padding: "6px 10px", color: T.textSecondary, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                                  title={row[col] == null ? "-" : String(row[col])}
+                                >
+                                  {row[col] == null ? "-" : String(row[col])}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <ResultPager page={page} totalPages={totalPages} setPage={setPage} totalRows={rows.length} />
+                </>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -245,46 +346,6 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
               </div>
             ) : null}
           </div>
-        ) : null}
-
-        {/* Results table */}
-        {rows.length > 0 ? (
-          <>
-            <div style={{ overflowX: "auto", borderRadius: 8, border: `1px solid ${T.border}` }}>
-              <div style={{ maxHeight: 260, overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: T.mono }}>
-                  <thead>
-                    <tr style={{
-                      borderBottom: `1px solid ${T.border}`,
-                      position: "sticky", top: 0,
-                      background: T.surfaceAlt,
-                    }}>
-                      {columns.map((col) => (
-                        <th key={col} style={{ padding: "8px 10px", textAlign: "left", color: T.textMuted, fontWeight: 600 }}>
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageRows.map((row, ri) => (
-                      <tr key={`${page}-${ri}`} style={{ borderBottom: `1px solid ${T.border}` }}>
-                        {columns.map((col) => (
-                          <td key={col}
-                            style={{ padding: "6px 10px", color: T.textSecondary, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                            title={row[col] == null ? "-" : String(row[col])}
-                          >
-                            {row[col] == null ? "-" : String(row[col])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <ResultPager page={page} totalPages={totalPages} setPage={setPage} totalRows={rows.length} />
-          </>
         ) : null}
       </div>
     </Card>

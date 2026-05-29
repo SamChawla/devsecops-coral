@@ -46,7 +46,9 @@ function ActionRow({ action, onApprove, onDismiss, approving }) {
   const st = action.status || "pending";
   const rowStyle = STATUS_ROW_STYLE[st] || STATUS_ROW_STYLE.pending;
   const isExecuting = approving === action.id || st === "executing";
-  const resultDetail = action.result
+  const resultUrl = action.result?.url || "";
+  // Prefer a human-friendly label (e.g. Jira key "KAN-12") over the raw URL.
+  const resultLabel = action.result
     ? (action.result.key || action.result.url || action.result.path || action.result.error || "")
     : "";
 
@@ -91,7 +93,23 @@ function ActionRow({ action, onApprove, onDismiss, approving }) {
               )}
               {st === "done" && (
                 <span style={{ color: T.green }}>
-                  ✓ Executed{resultDetail ? ` — ${resultDetail}` : ""}
+                  ✓ Executed
+                  {resultUrl ? (
+                    <>
+                      {" — "}
+                      <a
+                        href={resultUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: T.green, fontWeight: 700, textDecoration: "underline" }}
+                        title={`Open ${resultLabel} in a new tab`}
+                      >
+                        {resultLabel} ↗
+                      </a>
+                    </>
+                  ) : resultLabel ? (
+                    ` — ${resultLabel}`
+                  ) : null}
                 </span>
               )}
               {st === "failed" && (

@@ -158,6 +158,12 @@ async function mockApi(page) {
       return json({ ...a, status: "dismissed" });
     }
 
+    if (url.includes("/api/auth/me")) {
+      return json({
+        user: { id: 1, email: "demo@coral.dev", role: "owner" },
+        org: { id: 1, name: "Demo Org" },
+      });
+    }
     if (url.includes("/api/integrations")) return json({ detail: "Not Found" }, 404);
     if (url.includes("/api/sources")) return json(SOURCES);
     if (url.includes("/api/posture")) return json(POSTURE);
@@ -183,7 +189,7 @@ async function mockApi(page) {
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
-  await page.goto("/");
+  await page.goto("/app");
 });
 
 /** The primary tab navigation buttons live inside the page <nav>. */

@@ -1,10 +1,12 @@
 /**
  * Paginated vulnerability scan table with severity filters.
  */
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { T, SEV } from "../theme/tokens.js";
 import { mapScanRows } from "../utils/mapData.js";
 import { ActionButton, Badge, Card, CardHeader, EmptyState, Pill } from "./ui/Primitives.jsx";
+
+export default memo(ScanTable);
 
 const PAGE_SIZE = 12;
 
@@ -122,7 +124,7 @@ function TableRow({ row, index, onFocusPackage, onAskQuestion }) {
  * Vulnerability scan results table.
  * @param {{ rows: Array<object>, loading: boolean, onFocusPackage: Function, onAskQuestion: Function }} props
  */
-export default function ScanTable({ rows, loading, onFocusPackage, onAskQuestion }) {
+function ScanTable({ rows, loading, onFocusPackage, onAskQuestion }) {
   const [page, setPage]               = useState(0);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sevFilter, setSevFilter]     = useState("all");

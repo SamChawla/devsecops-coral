@@ -1,10 +1,12 @@
 /**
  * Unified cross-source security event timeline with source and severity filters.
  */
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { T, SRC_CLR, SEV } from "../theme/tokens.js";
 import { mapTimelineRows } from "../utils/mapData.js";
 import { ActionButton, Badge, Card, CardHeader, EmptyState } from "./ui/Primitives.jsx";
+
+export default memo(Timeline);
 
 const PAGE_SIZE = 14;
 
@@ -30,7 +32,7 @@ function SourceChip({ src }) {
  * Chronological security event timeline across GitHub, Sentry, Jira, and Grafana.
  * @param {{ rows: Array<object>, loading: boolean, onRefresh: Function }} props
  */
-export default function Timeline({ rows, loading, onRefresh }) {
+function Timeline({ rows, loading, onRefresh }) {
   const [page, setPage]                 = useState(0);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sevFilter, setSevFilter]       = useState("all");

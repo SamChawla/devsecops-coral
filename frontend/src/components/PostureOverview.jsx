@@ -1,9 +1,12 @@
 /**
  * Severity KPI cards and threat summary strip at the top of the dashboard.
  */
+import { memo } from "react";
 import { T, SEV } from "../theme/tokens.js";
 import { postureFromApi } from "../utils/mapData.js";
 import { ActionButton } from "./ui/Primitives.jsx";
+
+export default memo(PostureOverview);
 
 const SEV_ENTRIES = [
   { key: "CRITICAL", label: "Critical", icon: "▲", sublabel: "Immediate action" },
@@ -123,7 +126,7 @@ function KpiCard({ sevKey, label, icon, sublabel, count, loading }) {
  * Aggregated vulnerability posture overview with severity KPIs.
  * @param {{ posture: object|null, scanRows: Array<object>, loading: boolean, onRefresh: Function }} props
  */
-export default function PostureOverview({ posture, scanRows, loading, onRefresh }) {
+function PostureOverview({ posture, scanRows, loading, onRefresh }) {
   const { counts, total, untracked } = postureFromApi(posture, scanRows);
   const score = counts.CRITICAL * 10 + counts.HIGH * 4 + counts.MEDIUM * 2 + counts.LOW;
   const threatLevel = counts.CRITICAL > 0 ? "CRITICAL" : counts.HIGH > 3 ? "HIGH" : counts.HIGH > 0 ? "ELEVATED" : "NOMINAL";
