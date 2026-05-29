@@ -15,11 +15,15 @@ from devsecops_coral.config import (
     EURI_API_KEY,
     EURI_BASE_URL,
     EURI_MODEL,
+    GROK_API_KEY,
+    GROK_BASE_URL,
+    GROK_MODEL,
     resolve_llm_provider,
 )
 
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_EURI = "euri"
+PROVIDER_GROK = "grok"
 PROVIDER_CURSOR = "cursor"
 
 
@@ -124,12 +128,29 @@ def chat_completion(messages: list[dict[str, str]], *, temperature: float = 0.2)
             provider_label="Cursor",
         )
 
+    if provider == PROVIDER_GROK:
+        if not GROK_API_KEY:
+            raise LLMError(
+                "GROK_API_KEY is not set. Get a key at https://console.x.ai "
+                "and add it to .env, or set LLM_PROVIDER=cursor."
+            )
+        return _openai_chat_completion(
+            base_url=GROK_BASE_URL,
+            api_key=GROK_API_KEY,
+            model=GROK_MODEL,
+            messages=messages,
+            temperature=temperature,
+            timeout=90.0,
+            provider_label="Grok",
+        )
+
     if not EURI_API_KEY:
         raise LLMError(
             "No LLM configured. Options:\n"
             "  1. Set ANTHROPIC_API_KEY in .env  (LLM_PROVIDER=anthropic)\n"
             "  2. Set EURI_API_KEY in .env        (LLM_PROVIDER=euri)\n"
-            "  3. Run: npx cursor-agent-api-proxy  (LLM_PROVIDER=cursor)"
+            "  3. Set GROK_API_KEY in .env        (LLM_PROVIDER=grok)\n"
+            "  4. Run: npx cursor-agent-api-proxy  (LLM_PROVIDER=cursor)"
         )
     return _openai_chat_completion(
         base_url=EURI_BASE_URL,
@@ -153,6 +174,8 @@ def active_provider_info() -> dict[str, str]:
         }
     if provider == PROVIDER_CURSOR:
         return {"provider": PROVIDER_CURSOR, "model": CURSOR_MODEL, "base_url": CURSOR_BASE_URL}
+    if provider == PROVIDER_GROK:
+        return {"provider": PROVIDER_GROK, "model": GROK_MODEL, "base_url": GROK_BASE_URL}
     return {"provider": PROVIDER_EURI, "model": EURI_MODEL, "base_url": EURI_BASE_URL}
 
 

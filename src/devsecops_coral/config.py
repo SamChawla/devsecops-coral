@@ -26,8 +26,8 @@ SIGNAL_ICONS: dict[str, str] = {
     "unknown": "⚪",
 }
 
-# LLM provider: auto | anthropic | euri | cursor
-# auto = anthropic if ANTHROPIC_API_KEY set, then euri if EURI_API_KEY set, else cursor proxy
+# LLM provider: auto | anthropic | euri | grok | cursor
+# auto priority: anthropic → euri → grok → cursor proxy (first one configured wins)
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "auto")
 
 # Anthropic (direct — recommended, uses the same key as Claude Code)
@@ -38,6 +38,12 @@ ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 EURI_API_KEY: str = os.getenv("EURI_API_KEY", "")
 EURI_MODEL: str = os.getenv("EURI_MODEL", "gemini-2.5-flash")
 EURI_BASE_URL: str = os.getenv("EURI_BASE_URL", "https://api.euron.one/api/v1/euri")
+
+# Grok (xAI — OpenAI-compatible API at https://api.x.ai/v1)
+# The free tier exposes the fast models; override GROK_MODEL for paid tiers.
+GROK_API_KEY: str = os.getenv("GROK_API_KEY", "")
+GROK_MODEL: str = os.getenv("GROK_MODEL", "grok-4-fast")
+GROK_BASE_URL: str = os.getenv("GROK_BASE_URL", "https://api.x.ai/v1")
 
 # Cursor subscription (via local OpenAI-compatible proxy — see llm_client.check_cursor_proxy)
 # Typical setup: npx cursor-agent-api-proxy → http://localhost:4646/v1
@@ -50,6 +56,27 @@ CORAL_BIN: str = os.getenv(
     "CORAL_BIN",
     "wsl -d Ubuntu -e /root/.local/bin/coral",
 )
+
+# -- Authentication (SaaS shell) ---------------------------------------------
+# The dashboard ships a lightweight org-scoped auth layer (SQLite + hashed
+# passwords + httpOnly session cookies). Auth is enabled by default; set
+# DEVSECOPS_AUTH_ENABLED=0 to run the API open (e.g. local CLI-only use).
+AUTH_ENABLED: bool = os.getenv("DEVSECOPS_AUTH_ENABLED", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "",
+)
+
+# Where the auth SQLite database lives. Mount this path as a volume in
+# production so users/orgs survive container restarts.
+AUTH_DB_PATH: str = os.getenv(
+    "AUTH_DB_PATH",
+    str(Path(__file__).resolve().parents[2] / "data" / "auth.db"),
+)
+
+# Session lifetime in hours.
+SESSION_TTL_HOURS: int = int(os.getenv("DEVSECOPS_SESSION_TTL_HOURS", "168"))
 
 # Read-query result cache TTL (seconds). Identical Coral SQL executed within this
 # window reuses the previous result instead of re-querying Coral — so opening the
@@ -91,6 +118,8 @@ SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "development")
 PACKAGE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 ECOSYSTEM_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 GITHUB_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+# OSV/GHSA/CVE identifiers, e.g. GHSA-2f9x-5v75-3qv4 or CVE-2024-1234.
+VULN_ID_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 
 
 def project_root() -> Path:
@@ -117,6 +146,15 @@ def validate_ecosystem(ecosystem: str) -> str:
     cleaned = ecosystem.strip()
     if not cleaned or not ECOSYSTEM_PATTERN.match(cleaned):
         msg = f"Invalid ecosystem: {ecosystem!r}"
+        raise ValueError(msg)
+    return cleaned
+
+
+def validate_vuln_id(vuln_id: str) -> str:
+    """Validate a CVE/GHSA/OSV identifier safe for SQL interpolation."""
+    cleaned = vuln_id.strip()
+    if not cleaned or not VULN_ID_PATTERN.match(cleaned):
+        msg = f"Invalid vulnerability id: {vuln_id!r}"
         raise ValueError(msg)
     return cleaned
 
@@ -161,13 +199,15 @@ def parse_packages(packages: str) -> list[str]:
 def resolve_llm_provider() -> str:
     """Resolve which LLM backend to use.
 
-    Priority (auto mode): anthropic → euri → cursor proxy.
+    Priority (auto mode): anthropic → euri → grok → cursor proxy.
     """
     explicit = LLM_PROVIDER.strip().lower()
-    if explicit in ("anthropic", "euri", "cursor"):
+    if explicit in ("anthropic", "euri", "grok", "cursor"):
         return explicit
     if ANTHROPIC_API_KEY:
         return "anthropic"
     if EURI_API_KEY:
         return "euri"
+    if GROK_API_KEY:
+        return "grok"
     return "cursor"
