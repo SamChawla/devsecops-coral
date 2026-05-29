@@ -142,7 +142,7 @@ def build_description(
         _paragraph(
             {
                 "type": "text",
-                "text": "Filed automatically by the devsecops-coral agent after human approval.",
+                "text": "Filed automatically by the CoralSentinel agent after human approval.",
                 "marks": [{"type": "em"}],
             }
         )

@@ -432,7 +432,7 @@ def serve(
 
     import uvicorn
 
-    console.print(f"[green]Starting devsecops-coral dashboard at http://{host}:{port}[/green]")
+    console.print(f"[green]Starting CoralSentinel dashboard at http://{host}:{port}[/green]")
     uvicorn.run("devsecops_coral.api:app", host=host, port=port, reload=False)
 
 

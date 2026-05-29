@@ -125,7 +125,7 @@ if _sentry_enabled():
     )
 
 app = FastAPI(
-    title="devsecops-coral",
+    title="CoralSentinel",
     description="Cross-stack security correlation powered by Coral SQL",
     version="0.1.0",
 )

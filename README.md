@@ -1,4 +1,4 @@
-# devsecops-coral
+# CoralSentinel
 
 **Cross-stack security operations agent — powered by Coral SQL**
 
@@ -12,7 +12,7 @@
 
 ## What it does
 
-Security and DevOps teams waste 30–60 minutes per incident manually correlating signals across 4–6 different tools. **devsecops-coral** replaces that with one agent workflow:
+Security and DevOps teams waste 30–60 minutes per incident manually correlating signals across 4–6 different tools. **CoralSentinel** replaces that with one agent workflow:
 
 ```
 DETECT (Coral SQL reads)  →  RECOMMEND (agent analyzes)  →  ACT (agent executes, with approval)
@@ -69,6 +69,9 @@ cp /root/.local/bin/coral /usr/local/bin/coral
 ```
 
 ### Install
+
+> CoralSentinel ships as the **`devsecops-coral`** Python package and CLI — the
+> command name and repository keep that id; the product/brand is CoralSentinel.
 
 ```bash
 git clone <your-fork-url> devsecops-coral
