@@ -15,12 +15,23 @@ from devsecops_coral.config import (
 from devsecops_coral.coral_client import CoralError, execute_query, parse_since
 from devsecops_coral.models import QueryResult
 
-_SCHEMA_NOT_REGISTERED = "not currently registered"
+_SOURCE_UNAVAILABLE_MARKERS = (
+    "not currently registered",
+    "not found",
+    "no column named",
+    "requires `where",
+    "requires a constant",
+)
 
 
 def _is_schema_error(exc: CoralError) -> bool:
-    """Return True when Coral reports a missing or unregistered source schema."""
-    return _SCHEMA_NOT_REGISTERED in str(exc) or "not found" in str(exc).lower()
+    """Return True when a query fails because a source is missing or its schema differs.
+
+    Covers unregistered sources as well as column/required-filter mismatches, so
+    a cross-source query can fall back to OSV-only instead of crashing.
+    """
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _SOURCE_UNAVAILABLE_MARKERS)
 
 
 CORRELATE_QUERY = """
@@ -86,7 +97,7 @@ SELECT
     se.first_seen,
     se.last_seen,
     g.title AS pr_title,
-    g.user_login AS pr_author
+    g.user__login AS pr_author
 FROM osv.search_vulnerabilities(
     package => '{package}',
     ecosystem => '{ecosystem}'

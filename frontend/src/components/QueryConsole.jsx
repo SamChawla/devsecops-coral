@@ -1,7 +1,7 @@
 /**
  * Dual-mode query console — natural language (agent) or raw Coral SQL.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { T } from "../theme/tokens.js";
 import { ActionButton, Card, CardHeader } from "./ui/Primitives.jsx";
 
@@ -84,12 +84,21 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
   const [mode, setMode] = useState("nl");
   const [input, setInput] = useState("");
   const [page, setPage] = useState(0);
+  const taRef = useRef(null);
 
   useEffect(() => {
     if (seedQuery?.text) { setInput(seedQuery.text); setMode("nl"); }
   }, [seedQuery?.id, seedQuery?.text]);
 
   useEffect(() => { setPage(0); }, [result]);
+
+  // Auto-grow the textarea to fit multi-line SQL (capped, then scrolls).
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  }, [input, mode]);
 
   const rows = result?.data || [];
   const columns = useMemo(() => (rows.length > 0 ? Object.keys(rows[0]) : []), [rows]);
@@ -123,11 +132,16 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
 
       <div style={{ padding: 12 }}>
         {/* Input + Execute */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-          <input
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <textarea
+            ref={taRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && run()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
+            }}
+            rows={1}
+            spellCheck={false}
             placeholder={
               mode === "nl"
                 ? "Ask a question about sources, vulnerabilities, or activity…"
@@ -143,11 +157,23 @@ export default function QueryConsole({ onAsk, onSql, loading, result, seedQuery,
               fontSize: 13,
               fontFamily: mode === "sql" ? T.mono : T.sans,
               outline: "none",
+              resize: "vertical",
+              lineHeight: 1.5,
+              minHeight: 42,
+              maxHeight: 220,
+              overflowY: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              boxSizing: "border-box",
             }}
           />
-          <ActionButton tone="accent" onClick={run} disabled={loading || !input.trim()} style={{ minWidth: 100 }}>
+          <ActionButton tone="accent" onClick={run} disabled={loading || !input.trim()} style={{ minWidth: 100, height: 42 }}>
             {loading ? "Running…" : "▶ Execute"}
           </ActionButton>
+        </div>
+
+        <div style={{ fontSize: 10, color: T.textMuted, fontFamily: T.mono, marginBottom: 10 }}>
+          Enter to run · Shift+Enter for a new line
         </div>
 
         {/* Quick prompts */}

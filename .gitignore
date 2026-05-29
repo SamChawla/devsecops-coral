@@ -88,9 +88,20 @@ Desktop.ini
 # ── Node / Frontend ─────────────────────────
 frontend/node_modules/
 
+# ── Playwright (E2E UI tests) ───────────────
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+test-results/
+playwright-report/
+
 # Demo app consolidated into this repo at demo/fastapi_app/
 # (previously a separate GitHub repo — now deleted)
 demo/fastapi_app/.git
+
+# ── Guardrails private denylist (sensitive terms) ──
+# One employer/client codename per line — read by the pre-commit scan in Guardrails.md
+.guardrails-denylist.txt
 
 # ── Project-specific local files ─────────────
 # cursor.md is a duplicate of CLAUDE.md — excluded from the repo
@@ -108,6 +119,9 @@ demo/data/
 demo/*.sqlite3
 demo/**/*.db
 demo/**/output/
+
+# ── Generated reports (ACT generate_report output) ──
+reports/
 
 # ── Logs ────────────────────────────────────
 *.log

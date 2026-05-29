@@ -7,9 +7,10 @@ import os
 import re
 import shlex
 import subprocess
+import time
 from typing import Any
 
-from devsecops_coral.config import CORAL_BIN
+from devsecops_coral.config import CORAL_BIN, QUERY_CACHE_TTL
 
 _SINCE_PATTERN = re.compile(r"^(\d+)([hdwm])$", re.IGNORECASE)
 
@@ -75,12 +76,82 @@ def _run_coral_command(
         raise CoralError(f"Coral command timed out after {timeout}s") from exc
 
 
-def execute_query(sql: str, *, timeout: float = 120.0) -> list[dict[str, Any]]:
+# SQL string -> (cached_at_monotonic, rows). Shared across all read queries so
+# the Actions/recommend path reuses scan/correlate reads from the Detect tab.
+_QUERY_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+
+def clear_query_cache() -> None:
+    """Drop all cached query results. Called on explicit refresh to force re-reads."""
+    _QUERY_CACHE.clear()
+
+
+# WSL prints these to stderr even on success; they are not Coral errors.
+_WSL_NOISE = (
+    "Failed to start the systemd user session",
+    "See journalctl",
+)
+
+
+def _clean_coral_stderr(text: str) -> str:
+    """Strip non-actionable WSL warnings from Coral stderr for clearer errors."""
+    lines = [ln for ln in text.splitlines() if not any(n in ln for n in _WSL_NOISE)]
+    return "\n".join(lines).strip()
+
+
+def split_sql_statements(sql: str) -> list[str]:
+    """Split SQL into individual runnable statements on top-level semicolons.
+
+    Coral executes a single statement per call, so multi-statement input (for
+    example the per-package scan SQL joined with ``;``) must be split before
+    execution. Semicolons inside single-quoted string literals are ignored, and
+    empty or comment-only fragments are dropped.
+    """
+    statements: list[str] = []
+    buf: list[str] = []
+    in_str = False
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch == "'":
+            buf.append(ch)
+            if in_str and i + 1 < n and sql[i + 1] == "'":  # escaped '' inside a literal
+                buf.append(sql[i + 1])
+                i += 2
+                continue
+            in_str = not in_str
+            i += 1
+            continue
+        if ch == ";" and not in_str:
+            stmt = "".join(buf).strip()
+            if _has_executable_sql(stmt):
+                statements.append(stmt)
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+
+    tail = "".join(buf).strip()
+    if _has_executable_sql(tail):
+        statements.append(tail)
+    return statements
+
+
+def _has_executable_sql(stmt: str) -> bool:
+    """Return ``True`` when a fragment has SQL beyond whitespace and comments."""
+    return any(
+        line.strip() and not line.strip().startswith("--") for line in stmt.splitlines()
+    )
+
+
+def _execute_query_uncached(sql: str, *, timeout: float) -> list[dict[str, Any]]:
     """Run a SQL query via ``coral sql --format json`` and return row dicts."""
     result = _run_coral_command(["sql", "--format", "json", sql], timeout=timeout)
 
     if result.returncode != 0:
-        stderr = (result.stderr or result.stdout or "").strip()
+        stderr = _clean_coral_stderr((result.stderr or result.stdout or "").strip())
         raise CoralError(stderr or "Coral query failed with no error message")
 
     stdout = result.stdout.strip()
@@ -101,6 +172,45 @@ def execute_query(sql: str, *, timeout: float = 120.0) -> list[dict[str, Any]]:
         rows = data["data"]
         return rows if isinstance(rows, list) else []
     return [data] if isinstance(data, dict) else []
+
+
+def execute_query(
+    sql: str,
+    *,
+    timeout: float = 120.0,
+    use_cache: bool = True,
+) -> list[dict[str, Any]]:
+    """Run a SQL query, reusing a recent identical result within ``QUERY_CACHE_TTL``.
+
+    Args:
+        sql: The Coral SQL to execute.
+        timeout: Per-command timeout in seconds.
+        use_cache: When ``True`` (default), serve a cached result for identical SQL
+            executed within the TTL window and store fresh results in the cache.
+
+    Returns:
+        A list of row dicts. Cache hits return a shallow copy so callers may safely
+        mutate the returned list without corrupting the cache.
+    """
+    # Coral accepts one statement and rejects a trailing ';'. Normalize it away.
+    sql = sql.strip()
+    while sql.endswith(";"):
+        sql = sql[:-1].rstrip()
+
+    cacheable = use_cache and QUERY_CACHE_TTL > 0
+    key = sql
+
+    if cacheable:
+        hit = _QUERY_CACHE.get(key)
+        if hit is not None and (time.monotonic() - hit[0]) < QUERY_CACHE_TTL:
+            return list(hit[1])
+
+    rows = _execute_query_uncached(sql, timeout=timeout)
+
+    if cacheable:
+        _QUERY_CACHE[key] = (time.monotonic(), rows)
+        return list(rows)
+    return rows
 
 
 def list_sources() -> list[dict[str, Any]]:

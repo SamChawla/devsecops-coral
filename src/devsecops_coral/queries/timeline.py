@@ -2,22 +2,37 @@
 
 from __future__ import annotations
 
-from devsecops_coral.config import GITHUB_OWNER, GITHUB_REPO, resolve_github_scope
+from devsecops_coral.config import (
+    GITHUB_OWNER,
+    GITHUB_REPO,
+    JIRA_SECURITY_JQL,
+    resolve_github_scope,
+)
 from devsecops_coral.coral_client import CoralError, execute_query, parse_since
 from devsecops_coral.models import QueryResult
 
-_SCHEMA_NOT_REGISTERED = "not currently registered"
-
 _SCHEMA_NAMES = ("github", "sentry", "jira", "grafana")
+
+_SOURCE_UNAVAILABLE_MARKERS = (
+    "not currently registered",
+    "not found",
+    "no column named",
+    "requires `where",
+    "requires a constant",
+)
 
 
 def _missing_schema(exc: CoralError) -> str | None:
-    """Extract the unregistered schema name from a Coral schema error, if present."""
-    msg = str(exc)
-    if _SCHEMA_NOT_REGISTERED not in msg:
+    """Return the source name a timeline leg failed on, if it can be identified.
+
+    Matches both unregistered sources and column/required-filter errors so the
+    offending UNION leg can be dropped and the query retried.
+    """
+    msg = str(exc).lower()
+    if not any(marker in msg for marker in _SOURCE_UNAVAILABLE_MARKERS):
         return None
     for name in _SCHEMA_NAMES:
-        if f"`{name}`" in msg:
+        if f"`{name}`" in msg or f"{name}." in msg:
             return name
     return None
 
@@ -30,7 +45,7 @@ FROM (
         'github' AS source,
         'pr_merged' AS event_type,
         g.title AS title,
-        g.user_login AS detail,
+        g.user__login AS detail,
         CAST(NULL AS VARCHAR) AS severity
     FROM github.pulls g
     WHERE g.owner = '{owner}'
@@ -59,9 +74,9 @@ FROM (
         'ticket' AS event_type,
         j.summary AS title,
         j.key AS detail,
-        j.priority AS severity
+        j.priority_name AS severity
     FROM jira.issues j
-    WHERE j.labels LIKE '%security%'
+    WHERE j.jql = '{jql}'
         AND j.created >= NOW() - {interval}
 
     UNION ALL
@@ -102,9 +117,9 @@ FROM (
         'ticket' AS event_type,
         j.summary AS title,
         j.key AS detail,
-        j.priority AS severity
+        j.priority_name AS severity
     FROM jira.issues j
-    WHERE j.labels LIKE '%security%'
+    WHERE j.jql = '{jql}'
         AND j.created >= NOW() - {interval}
 
     UNION ALL
@@ -130,7 +145,7 @@ _GITHUB_LEG = """
         'github' AS source,
         'pr_merged' AS event_type,
         g.title AS title,
-        g.user_login AS detail,
+        g.user__login AS detail,
         CAST(NULL AS VARCHAR) AS severity
     FROM github.pulls g
     WHERE g.owner = '{owner}'
@@ -157,9 +172,9 @@ _JIRA_LEG = """
         'ticket' AS event_type,
         j.summary AS title,
         j.key AS detail,
-        j.priority AS severity
+        j.priority_name AS severity
     FROM jira.issues j
-    WHERE j.labels LIKE '%security%'
+    WHERE j.jql = '{jql}'
         AND j.created >= NOW() - {interval}"""
 
 _GRAFANA_LEG = """
@@ -197,7 +212,7 @@ def _build_timeline_query_flexible(
     if "sentry" not in skip:
         legs.append(_SENTRY_LEG.format(interval=interval))
     if "jira" not in skip:
-        legs.append(_JIRA_LEG.format(interval=interval))
+        legs.append(_JIRA_LEG.format(interval=interval, jql=JIRA_SECURITY_JQL))
     if "grafana" not in skip:
         legs.append(_GRAFANA_LEG.format(interval=interval))
 
@@ -210,8 +225,10 @@ def build_timeline_query(*, since: str, owner: str | None, repo: str | None) -> 
     """Build the unified timeline query, omitting GitHub leg if owner is unset."""
     interval = parse_since(since)
     if owner and repo:
-        return TIMELINE_QUERY_WITH_GITHUB.format(interval=interval, owner=owner, repo=repo)
-    return TIMELINE_QUERY_NO_GITHUB.format(interval=interval)
+        return TIMELINE_QUERY_WITH_GITHUB.format(
+            interval=interval, owner=owner, repo=repo, jql=JIRA_SECURITY_JQL
+        )
+    return TIMELINE_QUERY_NO_GITHUB.format(interval=interval, jql=JIRA_SECURITY_JQL)
 
 
 def run_timeline(

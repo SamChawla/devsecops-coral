@@ -40,6 +40,11 @@ function toTimelineParams(f)  {
   };
 }
 
+// `refresh` busts the backend Coral cache so explicit Refresh / Run buttons force
+// fresh reads. Passive navigation and initial load omit it, so they reuse cached
+// results (the Actions tab reuses the Detect tab's scan/correlate reads).
+function withRefresh(params, refresh) { return refresh ? { ...params, refresh: 1 } : params; }
+
 function getInitialTheme() {
   try { return localStorage.getItem("coral-theme") || "dark"; } catch { return "dark"; }
 }
@@ -92,39 +97,46 @@ export default function App() {
     try { const d = await getIntegrations(); setIntegrations(d.integrations || []); } catch { /* surfaced via useApi */ }
   }, [getIntegrations]);
 
-  const loadPosture = useCallback(async (f) => {
-    try { const d = await getPosture(toScanParams(f)); setPosture(d); } catch { /* surfaced */ }
+  const loadPosture = useCallback(async (f, { refresh = false } = {}) => {
+    try { const d = await getPosture(withRefresh(toScanParams(f), refresh)); setPosture(d); } catch { /* surfaced */ }
   }, [getPosture]);
 
-  const loadScan = useCallback(async (f) => {
-    try { const d = await getScan(toScanParams(f)); setScanRows(d.data || []); } catch { /* surfaced */ }
+  const loadScan = useCallback(async (f, { refresh = false } = {}) => {
+    try { const d = await getScan(withRefresh(toScanParams(f), refresh)); setScanRows(d.data || []); } catch { /* surfaced */ }
   }, [getScan]);
 
-  const loadCorrelate = useCallback(async (f) => {
-    try { const d = await getCorrelate(toCorrelateParams(f)); setCorrelateRows(d.data || []); } catch { /* surfaced */ }
+  const loadCorrelate = useCallback(async (f, { refresh = false } = {}) => {
+    try { const d = await getCorrelate(withRefresh(toCorrelateParams(f), refresh)); setCorrelateRows(d.data || []); } catch { /* surfaced */ }
   }, [getCorrelate]);
 
-  const loadTimeline = useCallback(async (f) => {
-    try { const d = await getTimeline(toTimelineParams(f)); setTimelineRows(d.data || []); } catch { /* surfaced */ }
+  const loadTimeline = useCallback(async (f, { refresh = false } = {}) => {
+    try { const d = await getTimeline(withRefresh(toTimelineParams(f), refresh)); setTimelineRows(d.data || []); } catch { /* surfaced */ }
     finally { setTimelineLoaded(true); }
   }, [getTimeline]);
 
-  const loadActions = useCallback(async (f) => {
+  const loadActions = useCallback(async (f, { refresh = false } = {}) => {
     try {
-      const d = await getActions(toScanParams(f));
+      const d = await getActions(withRefresh(toScanParams(f), refresh));
       setActions(d.actions || []);
       setActionsLoaded(true);
     } catch { /* surfaced */ }
   }, [getActions]);
 
   const refreshAll = useCallback((f) => {
-    loadIntegrations(); loadPosture(f); loadScan(f); loadCorrelate(f); loadTimeline(f);
+    loadIntegrations();
+    loadPosture(f, { refresh: true });
+    loadScan(f, { refresh: true });
+    loadCorrelate(f, { refresh: true });
+    loadTimeline(f, { refresh: true });
     setActionsLoaded(false);
     setTimelineLoaded(false);
   }, [loadCorrelate, loadIntegrations, loadPosture, loadScan, loadTimeline]);
 
-  // Initial load
+  // Initial load — guarded so React StrictMode's dev double-invoke doesn't fetch twice.
+  const didInit = useRef(false);
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     loadIntegrations(); loadPosture(DEFAULT_FILTERS); loadScan(DEFAULT_FILTERS); loadCorrelate(DEFAULT_FILTERS);
   }, [loadIntegrations, loadPosture, loadScan, loadCorrelate]);
 
@@ -135,9 +147,9 @@ export default function App() {
   }, [tab, actionsLoaded, timelineLoaded, loadActions, loadTimeline, filters]);
 
   const handleFilterChange = (k, v) => setFilters((c) => ({ ...c, [k]: v }));
-  const handleRunScan      = async () => { setTab("detect");  await Promise.all([loadPosture(filters), loadScan(filters), loadCorrelate(filters)]); };
-  const handleRunCorrelate = async () => { setTab("detect");  await loadCorrelate(filters); };
-  const handleRunTimeline  = async () => { setTab("timeline"); await loadTimeline(filters); };
+  const handleRunScan      = async () => { setTab("detect");  await Promise.all([loadPosture(filters, { refresh: true }), loadScan(filters, { refresh: true }), loadCorrelate(filters, { refresh: true })]); };
+  const handleRunCorrelate = async () => { setTab("detect");  await loadCorrelate(filters, { refresh: true }); };
+  const handleRunTimeline  = async () => { setTab("timeline"); await loadTimeline(filters, { refresh: true }); };
   const handleAsk          = async (q) => {
     try { setQueryResult(await postAsk(q)); } catch { setQueryResult(null); }
   };
@@ -378,7 +390,7 @@ export default function App() {
                     onApprove={handleApprove}
                     onDismiss={handleDismiss}
                     onApproveAll={handleApproveAll}
-                    onRefresh={() => { setActionsLoaded(false); loadActions(filters); }}
+                    onRefresh={() => { setActionsLoaded(false); loadActions(filters, { refresh: true }); }}
                   />
                   <SqlViewer sql={lastSql} mode="actions" />
                 </>
@@ -389,7 +401,7 @@ export default function App() {
                 <Timeline
                   rows={timelineRows}
                   loading={loading}
-                  onRefresh={() => { setTimelineLoaded(false); loadTimeline(filters); }}
+                  onRefresh={() => { setTimelineLoaded(false); loadTimeline(filters, { refresh: true }); }}
                 />
               )}
             </main>

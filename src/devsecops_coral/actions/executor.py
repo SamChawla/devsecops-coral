@@ -15,6 +15,18 @@ class ActionError(Exception):
 _lock = threading.Lock()
 _store: list[RecommendedAction] = []
 
+# Map internal severity buckets to standard Jira Cloud priority names. Default
+# Jira projects ship with Highest/High/Medium/Low/Lowest (no "Critical"), so
+# CRITICAL maps to "Highest". The Jira action retries without priority if an
+# instance uses a custom scheme that rejects these names.
+_JIRA_PRIORITY: dict[str, str] = {
+    "CRITICAL": "Highest",
+    "HIGH": "High",
+    "MEDIUM": "Medium",
+    "LOW": "Low",
+    "INFO": "Lowest",
+}
+
 
 # ---------------------------------------------------------------------------
 # Store management
@@ -67,6 +79,21 @@ def _find(action_id: int) -> RecommendedAction:
 # ---------------------------------------------------------------------------
 
 
+def _jira_summary(action: RecommendedAction) -> str:
+    """Build a descriptive Jira issue title from a recommended action.
+
+    Produces titles like ``[Security] HIGH vulnerability in pillow
+    (GHSA-xxxx)`` so the ticket is self-explanatory in the backlog.
+    """
+    severity = str(action.severity or "").upper()
+    package = action.package or "dependency"
+    prefix = "[URGENT] " if action.urgent else ""
+    title = f"{prefix}[Security] {severity} vulnerability in {package}".strip()
+    if action.cve:
+        title += f" ({action.cve})"
+    return title
+
+
 def _dispatch(action: RecommendedAction) -> dict[str, Any]:
     """Route an approved action to the correct handler module.
 
@@ -82,11 +109,15 @@ def _dispatch(action: RecommendedAction) -> dict[str, Any]:
     from devsecops_coral.actions import github, grafana, jira, report
 
     if action.type == ActionType.CREATE_JIRA:
-        priority = "Critical" if action.severity == "CRITICAL" else "High"
+        priority = _JIRA_PRIORITY.get(str(action.severity or "").upper(), "Medium")
         return jira.create_issue(
-            summary=action.title,
+            summary=_jira_summary(action),
             description=action.detail,
             priority=priority,
+            cve=action.cve,
+            package=action.package,
+            severity=action.severity,
+            urgent=action.urgent,
         )
     if action.type == ActionType.CREATE_PR:
         return github.create_pull_request(

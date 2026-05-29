@@ -51,9 +51,21 @@ CORAL_BIN: str = os.getenv(
     "wsl -d Ubuntu -e /root/.local/bin/coral",
 )
 
+# Read-query result cache TTL (seconds). Identical Coral SQL executed within this
+# window reuses the previous result instead of re-querying Coral — so opening the
+# Actions tab reuses the scan/correlate reads already performed on the Detect tab.
+# Explicit refresh busts the cache. Set to 0 to disable caching entirely.
+QUERY_CACHE_TTL: float = float(os.getenv("DEVSECOPS_QUERY_CACHE_TTL", "90"))
+
 # Demo defaults (override via env for your accounts)
 GITHUB_OWNER: str = os.getenv("GITHUB_OWNER", "")
 GITHUB_REPO: str = os.getenv("GITHUB_REPO", "devsecops-coral")
+
+# Coral's bundled Jira source requires a constant, *bounded* JQL filter on the
+# ``jql`` column (unbounded queries are rejected by the Jira API). This bounded
+# default scopes the search to the last year; CVE/package matching is then done
+# against the issue ``summary`` in the JOIN. Override via ``JIRA_SECURITY_JQL``.
+JIRA_SECURITY_JQL: str = os.getenv("JIRA_SECURITY_JQL", "created >= -365d ORDER BY created DESC")
 
 # -- Write credentials (Phase 3 ACT layer) -----------------------------------
 
@@ -70,6 +82,11 @@ JIRA_PROJECT_KEY: str = os.getenv("JIRA_PROJECT_KEY", "SEC")
 GRAFANA_URL: str = os.getenv("GRAFANA_URL", "")
 GRAFANA_API_KEY: str = os.getenv("GRAFANA_API_KEY", "")
 GRAFANA_DASHBOARD_UID: str = os.getenv("GRAFANA_DASHBOARD_UID", "")
+
+# Sentry — DSN for SDK error/tracing; auth token used by Coral source
+SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
+SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.2"))
+SENTRY_ENVIRONMENT: str = os.getenv("SENTRY_ENVIRONMENT", "development")
 
 PACKAGE_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 ECOSYSTEM_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
