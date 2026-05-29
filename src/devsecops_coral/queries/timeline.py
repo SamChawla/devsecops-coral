@@ -8,33 +8,28 @@ from devsecops_coral.config import (
     JIRA_SECURITY_JQL,
     resolve_github_scope,
 )
-from devsecops_coral.coral_client import CoralError, execute_query, parse_since
+from devsecops_coral.coral_client import (
+    CoralError,
+    execute_query,
+    identify_failed_source,
+    is_source_unavailable,
+    parse_since,
+)
 from devsecops_coral.models import QueryResult
 
 _SCHEMA_NAMES = ("github", "sentry", "jira", "grafana")
-
-_SOURCE_UNAVAILABLE_MARKERS = (
-    "not currently registered",
-    "not found",
-    "no column named",
-    "requires `where",
-    "requires a constant",
-)
 
 
 def _missing_schema(exc: CoralError) -> str | None:
     """Return the source name a timeline leg failed on, if it can be identified.
 
-    Matches both unregistered sources and column/required-filter errors so the
-    offending UNION leg can be dropped and the query retried.
+    Matches unregistered sources, column/required-filter errors, and upstream
+    connectivity/timeout failures so the offending UNION leg can be dropped and
+    the query retried instead of failing the whole timeline.
     """
-    msg = str(exc).lower()
-    if not any(marker in msg for marker in _SOURCE_UNAVAILABLE_MARKERS):
+    if not is_source_unavailable(exc):
         return None
-    for name in _SCHEMA_NAMES:
-        if f"`{name}`" in msg or f"{name}." in msg:
-            return name
-    return None
+    return identify_failed_source(exc, _SCHEMA_NAMES)
 
 
 TIMELINE_QUERY_WITH_GITHUB = """
@@ -263,12 +258,22 @@ def run_timeline(
             rows = execute_query(query)
             return QueryResult(data=rows, sql=query)
         except CoralError as exc:
-            missing = _missing_schema(exc)
-            if missing:
-                skip.add(missing)
-                if missing == "github":
-                    gh_owner, gh_repo = None, None
-            else:
+            if not is_source_unavailable(exc):
                 raise
+            missing = identify_failed_source(exc, _SCHEMA_NAMES)
+            if missing is None or missing in skip:
+                # Connectivity/timeout error we can't attribute: drop the first
+                # still-active leg so the next attempt makes progress.
+                active = [
+                    name
+                    for name in _SCHEMA_NAMES
+                    if name not in skip and (name != "github" or (gh_owner and gh_repo))
+                ]
+                if not active:
+                    raise
+                missing = active[0]
+            skip.add(missing)
+            if missing == "github":
+                gh_owner, gh_repo = None, None
 
     return QueryResult(data=[], sql="-- no configured timeline sources")

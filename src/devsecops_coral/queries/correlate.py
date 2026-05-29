@@ -12,26 +12,23 @@ from devsecops_coral.config import (
     validate_github_repo,
     validate_package_name,
 )
-from devsecops_coral.coral_client import CoralError, execute_query, parse_since
-from devsecops_coral.models import QueryResult
-
-_SOURCE_UNAVAILABLE_MARKERS = (
-    "not currently registered",
-    "not found",
-    "no column named",
-    "requires `where",
-    "requires a constant",
+from devsecops_coral.coral_client import (
+    CoralError,
+    execute_query,
+    is_source_unavailable,
+    parse_since,
 )
+from devsecops_coral.models import QueryResult
 
 
 def _is_schema_error(exc: CoralError) -> bool:
-    """Return True when a query fails because a source is missing or its schema differs.
+    """Return True when a query fails because a source is missing, mismatched, or slow.
 
-    Covers unregistered sources as well as column/required-filter mismatches, so
-    a cross-source query can fall back to OSV-only instead of crashing.
+    Covers unregistered sources, column/required-filter mismatches, and upstream
+    connectivity/timeout failures, so a cross-source query can fall back to
+    OSV-only instead of crashing.
     """
-    msg = str(exc).lower()
-    return any(marker in msg for marker in _SOURCE_UNAVAILABLE_MARKERS)
+    return is_source_unavailable(exc)
 
 
 CORRELATE_QUERY = """
@@ -47,18 +44,16 @@ SELECT
     se.first_seen,
     se.last_seen,
     CAST(NULL AS VARCHAR) AS pr_title,
-    CAST(NULL AS VARCHAR) AS pr_author
+    CAST(NULL AS VARCHAR) AS pr_author,
+    CAST(NULL AS VARCHAR) AS pr_url
 FROM osv.search_vulnerabilities(
     package => '{package}',
     ecosystem => '{ecosystem}'
 ) osv
 LEFT JOIN sentry.issues se
     ON se.level IN ('fatal', 'error')
-    AND se.last_seen >= NOW() - {interval}
-    AND (
-        se.title LIKE CONCAT('%', '{package}', '%')
-        OR se.culprit LIKE CONCAT('%', '{package}', '%')
-    )
+    AND CAST(se.last_seen AS TIMESTAMP) >= NOW() - {interval}
+    AND se.title LIKE CONCAT('%', '{package}', '%')
 ORDER BY se.count DESC NULLS LAST
 LIMIT 50
 """
@@ -76,7 +71,8 @@ SELECT
     CAST(NULL AS TIMESTAMP) AS first_seen,
     CAST(NULL AS TIMESTAMP) AS last_seen,
     CAST(NULL AS VARCHAR) AS pr_title,
-    CAST(NULL AS VARCHAR) AS pr_author
+    CAST(NULL AS VARCHAR) AS pr_author,
+    CAST(NULL AS VARCHAR) AS pr_url
 FROM osv.search_vulnerabilities(
     package => '{package}',
     ecosystem => '{ecosystem}'
@@ -97,18 +93,18 @@ SELECT
     se.first_seen,
     se.last_seen,
     g.title AS pr_title,
-    g.user__login AS pr_author
+    g.user__login AS pr_author,
+    CASE WHEN g.number IS NULL THEN NULL
+        ELSE CONCAT('https://github.com/{owner}/{repo}/pull/', CAST(g.number AS VARCHAR))
+    END AS pr_url
 FROM osv.search_vulnerabilities(
     package => '{package}',
     ecosystem => '{ecosystem}'
 ) osv
 LEFT JOIN sentry.issues se
     ON se.level IN ('fatal', 'error')
-    AND se.last_seen >= NOW() - {interval}
-    AND (
-        se.title LIKE CONCAT('%', '{package}', '%')
-        OR se.culprit LIKE CONCAT('%', '{package}', '%')
-    )
+    AND CAST(se.last_seen AS TIMESTAMP) >= NOW() - {interval}
+    AND se.title LIKE CONCAT('%', '{package}', '%')
 LEFT JOIN github.pulls g
     ON g.owner = '{owner}'
     AND g.repo = '{repo}'

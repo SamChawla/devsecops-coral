@@ -8,11 +8,73 @@ import re
 import shlex
 import subprocess
 import time
+from collections.abc import Iterable
 from typing import Any
 
 from devsecops_coral.config import CORAL_BIN, QUERY_CACHE_TTL
 
 _SINCE_PATTERN = re.compile(r"^(\d+)([hdwm])$", re.IGNORECASE)
+
+# Substrings in a Coral error that mean "this source is unavailable or its
+# schema differs" — query modules use these to drop the offending source/leg
+# and retry instead of failing the whole cross-source query. Connectivity and
+# timeout markers are included so a slow upstream API (e.g. Jira's search/jql)
+# degrades gracefully rather than surfacing a raw 30s timeout to the user.
+SOURCE_UNAVAILABLE_MARKERS: tuple[str, ...] = (
+    "not currently registered",
+    "not found",
+    "no column named",
+    "requires `where",
+    "requires a constant",
+    "timed out",
+    "timeout",
+    "could not be reached",
+    "connection refused",
+    "could not connect",
+    "connection reset",
+    "name or service not known",
+    "temporarily unavailable",
+)
+
+# Substrings that tie an error to a specific source schema. Coral includes the
+# upstream URL on timeouts/connectivity failures, so we can identify which
+# source to drop even when the schema name itself is absent from the message.
+_SCHEMA_ERROR_HINTS: dict[str, tuple[str, ...]] = {
+    "jira": ("jira", "atlassian.net", "search/jql"),
+    "sentry": ("sentry", "sentry.io"),
+    "github": ("github", "api.github.com"),
+    "grafana": ("grafana", "grafana.net", "grafana.com"),
+    "osv": ("osv", "osv.dev"),
+}
+
+
+def is_source_unavailable(exc: CoralError | str) -> bool:
+    """Return True when an error means a source is unavailable or schema-mismatched.
+
+    Covers unregistered sources, column/required-filter mismatches, and upstream
+    connectivity/timeout failures.
+    """
+    msg = str(exc).lower()
+    return any(marker in msg for marker in SOURCE_UNAVAILABLE_MARKERS)
+
+
+def identify_failed_source(exc: CoralError | str, schemas: Iterable[str]) -> str | None:
+    """Best-effort identify which source schema an error refers to.
+
+    Checks the backtick/dotted schema name first, then known URL/name hints (so a
+    Jira timeout reported only via an ``atlassian.net`` URL still maps to ``jira``).
+    Returns the schema name, or ``None`` when it cannot be determined.
+    """
+    msg = str(exc).lower()
+    candidates = list(schemas)
+    for name in candidates:
+        if f"`{name}`" in msg or f"{name}." in msg:
+            return name
+    for name in candidates:
+        for hint in _SCHEMA_ERROR_HINTS.get(name, (name,)):
+            if hint in msg:
+                return name
+    return None
 
 _SINCE_UNITS = {
     "h": "hours",

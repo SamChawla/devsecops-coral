@@ -128,13 +128,31 @@ def test_action_ids_are_sequential() -> None:
     assert ids == list(range(1, len(actions) + 1))
 
 
-def test_medium_severity_excluded_from_jira() -> None:
-    """MEDIUM severity untracked CVEs do not trigger create_jira (only HIGH/CRITICAL)."""
-    medium_scan = [
-        {"package": "celery", "cve": "GHSA-d", "severity": "MEDIUM", "jira_ticket": None}
+def test_untracked_any_severity_generates_jira() -> None:
+    """Untracked CVEs of any severity (MEDIUM/UNKNOWN included) trigger create_jira.
+
+    Being untracked is the gap the tool surfaces, so the recommender no longer
+    filters by severity — it only orders by it.
+    """
+    mixed_scan = [
+        {"package": "celery", "cve": "GHSA-d", "severity": "MEDIUM", "jira_ticket": None},
+        {"package": "flask", "cve": "GHSA-e", "severity": None, "jira_ticket": None},
     ]
-    actions = build_recommendations(medium_scan, [])
-    assert not any(a.type == ActionType.CREATE_JIRA for a in actions)
+    actions = build_recommendations(mixed_scan, [])
+    jira_actions = [a for a in actions if a.type == ActionType.CREATE_JIRA]
+    assert {a.package for a in jira_actions} == {"celery", "flask"}
+
+
+def test_untracked_jira_ordered_by_severity() -> None:
+    """create_jira actions surface the most severe untracked CVE first."""
+    scan = [
+        {"package": "a", "cve": "GHSA-low", "severity": "LOW", "jira_ticket": None},
+        {"package": "b", "cve": "GHSA-crit", "severity": "CRITICAL", "jira_ticket": None},
+        {"package": "c", "cve": "GHSA-med", "severity": "MEDIUM", "jira_ticket": None},
+    ]
+    actions = build_recommendations(scan, [])
+    jira_cves = [a.cve for a in actions if a.type == ActionType.CREATE_JIRA]
+    assert jira_cves == ["GHSA-crit", "GHSA-med", "GHSA-low"]
 
 
 # ---------------------------------------------------------------------------

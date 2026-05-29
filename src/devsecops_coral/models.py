@@ -42,10 +42,29 @@ class TimelineResponse(BaseModel):
     since: str
 
 
+class GithubPrsResponse(BaseModel):
+    """Response for GET /api/github-prs."""
+
+    data: list[dict[str, Any]]
+    sql: str
+    owner: str
+    repo: str
+    since: str
+
+
 class AskRequest(BaseModel):
     """Request body for POST /api/ask."""
 
     query: str = Field(min_length=1)
+
+
+class RootCauseRequest(BaseModel):
+    """Request body for POST /api/root-cause."""
+
+    package: str = Field(min_length=1)
+    cve: str | None = None
+    ecosystem: str = "PyPI"
+    since: str = "30d"
 
 
 class ActionType(str, Enum):
@@ -189,3 +208,40 @@ class PostureResponse(BaseModel):
     sql: str
     ecosystem: str
     packages: list[str]
+
+
+class OrgInfo(BaseModel):
+    """Public organization fields exposed to the client."""
+
+    id: int
+    name: str
+
+
+class UserInfo(BaseModel):
+    """Public user fields exposed to the client."""
+
+    id: int
+    email: str
+    role: str
+
+
+class AuthResponse(BaseModel):
+    """Response for /api/auth/* — the resolved identity (null when anonymous)."""
+
+    user: UserInfo | None = None
+    org: OrgInfo | None = None
+
+
+class SignupRequest(BaseModel):
+    """Request body for POST /api/auth/signup."""
+
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=8)
+    org_name: str = Field(min_length=1)
+
+
+class LoginRequest(BaseModel):
+    """Request body for POST /api/auth/login."""
+
+    email: str = Field(min_length=3)
+    password: str = Field(min_length=1)

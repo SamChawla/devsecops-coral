@@ -19,6 +19,17 @@ _DEFAULT_ECOSYSTEM = "PyPI"
 _DEFAULT_SINCE = "7d"
 
 _HIGH_SEVERITY = {"CRITICAL", "HIGH"}
+# Lower rank = more severe; used to order the untracked-CVE action list so the
+# most important tickets surface first regardless of scan order.
+_SEVERITY_RANK: dict[str, int] = {
+    "CRITICAL": 0,
+    "HIGH": 1,
+    "MEDIUM": 2,
+    "MODERATE": 2,
+    "LOW": 3,
+    "INFO": 4,
+    "UNKNOWN": 5,
+}
 _TYPE_LABELS: dict[ActionType, str] = {
     ActionType.CREATE_JIRA: "JIRA",
     ActionType.CREATE_PR: "GITHUB PR",
@@ -35,6 +46,11 @@ def _worst_signal(signals: list[str]) -> str:
     if "monitor" in signals:
         return "monitor"
     return "clean"
+
+
+def _severity_rank(severity: Any) -> int:
+    """Return a sort rank for a severity label (lower = more severe)."""
+    return _SEVERITY_RANK.get(str(severity or "").upper(), _SEVERITY_RANK["UNKNOWN"])
 
 
 def _package_signal_map(correlate_data: list[dict[str, Any]]) -> dict[str, str]:
@@ -61,8 +77,10 @@ def build_recommendations(
     """Apply rule-based logic to detection data and return ordered action list.
 
     Rules applied in order:
-    - Each untracked HIGH/CRITICAL CVE → ``create_jira`` (urgent when actively exploited)
-    - First actively-exploited untracked package → ``create_pr``
+    - Each untracked CVE (any severity) → ``create_jira`` — being untracked is
+      itself the gap the tool surfaces. Ordered most-severe first and flagged
+      urgent when the package is actively exploited.
+    - Each actively-exploited / monitored untracked package → ``create_pr``
     - Any untracked CVEs exist → ``annotate_grafana``
     - Always → ``generate_report``
 
@@ -76,13 +94,17 @@ def build_recommendations(
     """
     signal_map = _package_signal_map(correlate_data)
 
-    untracked = [
-        row
-        for row in scan_data
-        if row.get("cve")
-        and not row.get("jira_ticket")
-        and str(row.get("severity") or "").upper() in _HIGH_SEVERITY
-    ]
+    # Every CVE without a Jira ticket is "untracked" — this is the core gap the
+    # product highlights, so all severities (including UNKNOWN) get a ticket
+    # recommendation. The list is ordered most-severe first, with actively
+    # exploited packages ahead of equal-severity peers.
+    untracked = [row for row in scan_data if row.get("cve") and not row.get("jira_ticket")]
+    untracked.sort(
+        key=lambda r: (
+            _severity_rank(r.get("severity")),
+            0 if signal_map.get(str(r.get("package") or ""), "clean") == "active" else 1,
+        )
+    )
 
     actions: list[RecommendedAction] = []
     next_id = 1
@@ -91,7 +113,9 @@ def build_recommendations(
     for row in untracked:
         pkg = str(row.get("package") or "")
         cve = str(row.get("cve") or "")
-        severity = str(row.get("severity") or "HIGH").upper()
+        severity = str(row.get("severity") or "UNKNOWN").upper()
+        if severity == "MODERATE":
+            severity = "MEDIUM"
         signal = signal_map.get(pkg, "clean")
         urgent = signal == "active"
 
