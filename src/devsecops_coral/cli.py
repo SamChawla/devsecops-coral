@@ -52,7 +52,7 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 integrations_app = typer.Typer(help="Manage Coral data source integrations.")
-llm_app = typer.Typer(help="LLM provider settings (EURI or Cursor subscription).")
+llm_app = typer.Typer(help="LLM provider settings (Anthropic, EURI, Grok, or Cursor subscription).")
 app.add_typer(integrations_app, name="integrations")
 app.add_typer(llm_app, name="llm")
 
@@ -315,6 +315,7 @@ def llm_status() -> None:
     console.print("\n[dim]Usage dashboards:[/dim]")
     console.print("  Cursor: https://cursor.com/dashboard/usage")
     console.print("  EURI:   https://euron.one/euri")
+    console.print("  Grok:   https://console.x.ai")
 
 
 @app.command("recommend")
@@ -433,6 +434,54 @@ def serve(
 
     console.print(f"[green]Starting devsecops-coral dashboard at http://{host}:{port}[/green]")
     uvicorn.run("devsecops_coral.api:app", host=host, port=port, reload=False)
+
+
+@app.command("reset")
+def reset(
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the confirmation prompt")] = False,
+    keep_accounts: Annotated[
+        bool, typer.Option(help="Keep users/orgs; only clear generated reports")
+    ] = False,
+) -> None:
+    """Reset local demo state — accounts (auth DB) and generated reports.
+
+    Run this with the dashboard server stopped, then restart it for a clean
+    demo. Restarting the server also empties the in-memory action store and the
+    Coral query cache.
+    """
+    from pathlib import Path
+
+    from devsecops_coral import auth
+    from devsecops_coral.config import AUTH_DB_PATH
+
+    plan = []
+    if not keep_accounts:
+        plan.append(f"all accounts / organizations / sessions ({AUTH_DB_PATH})")
+    plan.append("generated reports (./reports/*.md)")
+
+    if not yes:
+        console.print("[yellow]This will permanently delete:[/yellow]")
+        for item in plan:
+            console.print(f"  - {item}")
+        if not typer.confirm("Proceed?"):
+            console.print("[yellow]Aborted — nothing was deleted.[/yellow]")
+            raise typer.Exit(code=1)
+
+    if not keep_accounts:
+        auth.reset_db()
+        console.print("[green]✓[/green] Auth database reset — no users or organizations.")
+
+    reports_dir = Path("reports")
+    removed = 0
+    if reports_dir.is_dir():
+        for report_file in reports_dir.glob("*.md"):
+            report_file.unlink()
+            removed += 1
+    console.print(f"[green]✓[/green] Cleared {removed} generated report(s).")
+    console.print(
+        "[dim]Restart the server (devsecops-coral serve) for a fresh demo — "
+        "this also clears the action store and query cache.[/dim]"
+    )
 
 
 @integrations_app.command("status")

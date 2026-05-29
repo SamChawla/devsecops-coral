@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,12 +28,25 @@ from devsecops_coral.actions.executor import (
     get_actions,
     load_actions,
 )
-from devsecops_coral.agent import AgentError
+from devsecops_coral.agent import AgentError, analyze_root_cause
 from devsecops_coral.agent import ask as run_agent_ask
+from devsecops_coral.auth import (
+    AuthError,
+    authenticate,
+    create_session,
+    delete_session,
+    init_db,
+    session_user,
+)
+from devsecops_coral.auth import signup as auth_signup
 from devsecops_coral.config import (
+    AUTH_ENABLED,
+    GITHUB_OWNER,
+    GITHUB_REPO,
     SENTRY_DSN,
     SENTRY_ENVIRONMENT,
     SENTRY_TRACES_SAMPLE_RATE,
+    SESSION_TTL_HOURS,
     parse_packages,
     project_root,
 )
@@ -53,21 +66,33 @@ from devsecops_coral.models import (
     ActionsResponse,
     AskRequest,
     AskResponse,
+    AuthResponse,
     CorrelateResponse,
+    GithubPrsResponse,
     IntegrationInfo,
     IntegrationInputModel,
     IntegrationsResponse,
+    LoginRequest,
     PostureResponse,
     RecommendedAction,
     RecommendResponse,
+    RootCauseRequest,
     ScanResponse,
+    SignupRequest,
     SourceActionResponse,
     SourceConnectRequest,
     SourceInfo,
     SourcesResponse,
     TimelineResponse,
 )
-from devsecops_coral.queries import run_correlate, run_posture, run_scan, run_timeline
+from devsecops_coral.queries import (
+    run_correlate,
+    run_github_prs,
+    run_posture,
+    run_root_cause,
+    run_scan,
+    run_timeline,
+)
 from devsecops_coral.recommender import run_recommend
 
 
@@ -115,10 +140,83 @@ app.add_middleware(
 
 FRONTEND_DIST = project_root() / "frontend" / "dist"
 
+SESSION_COOKIE = "coral_session"
+_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "0").strip().lower() in ("1", "true", "yes")
+
+if AUTH_ENABLED:
+    init_db()
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    """Attach the httpOnly session cookie to a response."""
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=SESSION_TTL_HOURS * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=_COOKIE_SECURE,
+        path="/",
+    )
+
+
+def require_user(request: Request) -> dict:
+    """Dependency: resolve the current user from the session cookie.
+
+    When auth is disabled (``DEVSECOPS_AUTH_ENABLED=0``) this is a no-op so the
+    CLI/dev workflows keep working. Otherwise an invalid/missing session yields
+    HTTP 401.
+    """
+    if not AUTH_ENABLED:
+        return {"user": None, "org": None}
+    data = session_user(request.cookies.get(SESSION_COOKIE))
+    if not data:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+    return data
+
 
 def _coral_http_error(exc: Exception) -> HTTPException:
     """Map Coral/agent errors to HTTP 502."""
     return HTTPException(status_code=502, detail=str(exc))
+
+
+@app.post("/api/auth/signup", response_model=AuthResponse)
+def api_signup(body: SignupRequest, response: Response) -> AuthResponse:
+    """Create an organization + owner user and start a session."""
+    try:
+        result = auth_signup(body.email, body.password, body.org_name)
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _set_session_cookie(response, create_session(result["user"]["id"]))
+    return AuthResponse(**result)
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def api_login(body: LoginRequest, response: Response) -> AuthResponse:
+    """Authenticate an existing user and start a session."""
+    try:
+        result = authenticate(body.email, body.password)
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    _set_session_cookie(response, create_session(result["user"]["id"]))
+    return AuthResponse(**result)
+
+
+@app.post("/api/auth/logout", response_model=AuthResponse)
+def api_logout(request: Request, response: Response) -> AuthResponse:
+    """End the current session and clear the cookie."""
+    delete_session(request.cookies.get(SESSION_COOKIE))
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return AuthResponse()
+
+
+@app.get("/api/auth/me", response_model=AuthResponse)
+def api_me(request: Request) -> AuthResponse:
+    """Return the currently authenticated identity (null fields when anonymous)."""
+    if not AUTH_ENABLED:
+        return AuthResponse()
+    data = session_user(request.cookies.get(SESSION_COOKIE))
+    return AuthResponse(**data) if data else AuthResponse()
 
 
 def _source_status_list() -> list[SourceInfo]:
@@ -181,8 +279,8 @@ def _validated_source_values(body: SourceConnectRequest) -> tuple[str, dict[str,
     return integration.name, values
 
 
-@app.get("/api/scan", response_model=ScanResponse)
-async def api_scan(
+@app.get("/api/scan", response_model=ScanResponse, dependencies=[Depends(require_user)])
+def api_scan(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,requests,pillow,celery"),
     refresh: bool = Query(default=False),
@@ -203,8 +301,8 @@ async def api_scan(
     )
 
 
-@app.get("/api/correlate", response_model=CorrelateResponse)
-async def api_correlate(
+@app.get("/api/correlate", response_model=CorrelateResponse, dependencies=[Depends(require_user)])
+def api_correlate(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,requests,pillow,celery"),
     since: str = Query(default="7d"),
@@ -227,8 +325,8 @@ async def api_correlate(
     )
 
 
-@app.get("/api/timeline", response_model=TimelineResponse)
-async def api_timeline(
+@app.get("/api/timeline", response_model=TimelineResponse, dependencies=[Depends(require_user)])
+def api_timeline(
     since: str = Query(default="24h"),
     github_owner: str | None = Query(default=None),
     github_repo: str | None = Query(default=None),
@@ -244,8 +342,32 @@ async def api_timeline(
     return TimelineResponse(data=result.data, sql=result.sql, since=since)
 
 
-@app.post("/api/ask", response_model=AskResponse)
-async def api_ask(body: AskRequest) -> AskResponse:
+@app.get("/api/github-prs", response_model=GithubPrsResponse, dependencies=[Depends(require_user)])
+def api_github_prs(
+    github_owner: str | None = Query(default=None),
+    github_repo: str | None = Query(default=None),
+    since: str = Query(default="90d"),
+    state: str | None = Query(default=None),
+    refresh: bool = Query(default=False),
+) -> GithubPrsResponse:
+    """Return security-related GitHub PRs for the repo and the Coral SQL used."""
+    if refresh:
+        clear_query_cache()
+    try:
+        result = run_github_prs(owner=github_owner, repo=github_repo, since=since, state=state)
+    except (CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+    return GithubPrsResponse(
+        data=result.data,
+        sql=result.sql,
+        owner=(github_owner or GITHUB_OWNER or ""),
+        repo=(github_repo or GITHUB_REPO or ""),
+        since=since,
+    )
+
+
+@app.post("/api/ask", response_model=AskResponse, dependencies=[Depends(require_user)])
+def api_ask(body: AskRequest) -> AskResponse:
     """Agent: natural language to SQL to results to analysis, plus best-effort recommendations."""
     try:
         result = run_agent_ask(body.query)
@@ -266,8 +388,36 @@ async def api_ask(body: AskRequest) -> AskResponse:
     )
 
 
-@app.post("/api/sql", response_model=AskResponse)
-async def api_raw_sql(body: AskRequest) -> AskResponse:
+@app.post("/api/root-cause", response_model=AskResponse, dependencies=[Depends(require_user)])
+def api_root_cause(body: RootCauseRequest) -> AskResponse:
+    """Root-cause a CVE: join OSV + Sentry errors + related GitHub PRs, then narrate.
+
+    Returns the same shape as /api/ask (data + sql + analysis) so the dashboard's
+    Query Console can render the result with no extra plumbing.
+    """
+    try:
+        result = run_root_cause(
+            ecosystem=body.ecosystem,
+            package=body.package,
+            cve=body.cve,
+            since=body.since,
+        )
+        analysis = analyze_root_cause(cve=body.cve, package=body.package, rows=result.data)
+    except (AgentError, CoralError, ValueError) as exc:
+        raise _coral_http_error(exc) from exc
+
+    target = body.cve or body.package
+    return AskResponse(
+        data=result.data,
+        sql=result.sql,
+        analysis=analysis,
+        question=f"Root cause for {target}",
+        row_count=len(result.data),
+    )
+
+
+@app.post("/api/sql", response_model=AskResponse, dependencies=[Depends(require_user)])
+def api_raw_sql(body: AskRequest) -> AskResponse:
     """Execute raw Coral SQL (SELECT only).
 
     Coral runs one statement at a time, but the scan/correlate SQL shown in the
@@ -300,8 +450,8 @@ async def api_raw_sql(body: AskRequest) -> AskResponse:
     )
 
 
-@app.get("/api/sources", response_model=SourcesResponse)
-async def api_sources() -> SourcesResponse:
+@app.get("/api/sources", response_model=SourcesResponse, dependencies=[Depends(require_user)])
+def api_sources() -> SourcesResponse:
     """Return connected source status with table counts."""
     metadata, sql = get_sources_metadata()
     return SourcesResponse(
@@ -310,14 +460,22 @@ async def api_sources() -> SourcesResponse:
     )
 
 
-@app.get("/api/integrations", response_model=IntegrationsResponse)
-async def api_integrations() -> IntegrationsResponse:
+@app.get(
+    "/api/integrations",
+    response_model=IntegrationsResponse,
+    dependencies=[Depends(require_user)],
+)
+def api_integrations() -> IntegrationsResponse:
     """Return the integration catalog with current connection status."""
     return IntegrationsResponse(integrations=_integration_catalog())
 
 
-@app.post("/api/sources/connect", response_model=SourceActionResponse)
-async def api_connect_source(body: SourceConnectRequest) -> SourceActionResponse:
+@app.post(
+    "/api/sources/connect",
+    response_model=SourceActionResponse,
+    dependencies=[Depends(require_user)],
+)
+def api_connect_source(body: SourceConnectRequest) -> SourceActionResponse:
     """Connect or update a Coral source using UI-provided credentials."""
     try:
         name, values = _validated_source_values(body)
@@ -342,8 +500,12 @@ async def api_connect_source(body: SourceConnectRequest) -> SourceActionResponse
     )
 
 
-@app.post("/api/sources/{name}/test", response_model=SourceActionResponse)
-async def api_test_source(name: str) -> SourceActionResponse:
+@app.post(
+    "/api/sources/{name}/test",
+    response_model=SourceActionResponse,
+    dependencies=[Depends(require_user)],
+)
+def api_test_source(name: str) -> SourceActionResponse:
     """Run Coral validation for an installed source."""
     try:
         test_source(name)
@@ -356,8 +518,12 @@ async def api_test_source(name: str) -> SourceActionResponse:
     )
 
 
-@app.delete("/api/sources/{name}", response_model=SourceActionResponse)
-async def api_remove_source(name: str) -> SourceActionResponse:
+@app.delete(
+    "/api/sources/{name}",
+    response_model=SourceActionResponse,
+    dependencies=[Depends(require_user)],
+)
+def api_remove_source(name: str) -> SourceActionResponse:
     """Remove an installed source."""
     try:
         remove_source(name)
@@ -370,8 +536,8 @@ async def api_remove_source(name: str) -> SourceActionResponse:
     )
 
 
-@app.get("/api/posture", response_model=PostureResponse)
-async def api_posture(
+@app.get("/api/posture", response_model=PostureResponse, dependencies=[Depends(require_user)])
+def api_posture(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,requests,pillow,celery"),
     refresh: bool = Query(default=False),
@@ -385,8 +551,8 @@ async def api_posture(
         raise _coral_http_error(exc) from exc
 
 
-@app.get("/api/recommend", response_model=RecommendResponse)
-async def api_recommend(
+@app.get("/api/recommend", response_model=RecommendResponse, dependencies=[Depends(require_user)])
+def api_recommend(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,flask,requests,celery,pillow"),
     since: str = Query(default="7d"),
@@ -401,8 +567,8 @@ async def api_recommend(
         raise _coral_http_error(exc) from exc
 
 
-@app.post("/api/recommend", response_model=RecommendResponse)
-async def api_recommend_regenerate(
+@app.post("/api/recommend", response_model=RecommendResponse, dependencies=[Depends(require_user)])
+def api_recommend_regenerate(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,flask,requests,celery,pillow"),
     since: str = Query(default="7d"),
@@ -416,8 +582,8 @@ async def api_recommend_regenerate(
         raise _coral_http_error(exc) from exc
 
 
-@app.get("/api/actions", response_model=ActionsResponse)
-async def api_get_actions(
+@app.get("/api/actions", response_model=ActionsResponse, dependencies=[Depends(require_user)])
+def api_get_actions(
     ecosystem: str = Query(default="PyPI"),
     packages: str = Query(default="django,flask,requests,celery,pillow"),
     refresh: bool = Query(default=False),
@@ -439,8 +605,12 @@ async def api_get_actions(
     return actions_response()
 
 
-@app.post("/api/actions/{action_id}/approve", response_model=RecommendedAction)
-async def api_approve_action(action_id: int) -> RecommendedAction:
+@app.post(
+    "/api/actions/{action_id}/approve",
+    response_model=RecommendedAction,
+    dependencies=[Depends(require_user)],
+)
+def api_approve_action(action_id: int) -> RecommendedAction:
     """Approve and execute a single pending action."""
     try:
         return approve_action(action_id)
@@ -448,15 +618,23 @@ async def api_approve_action(action_id: int) -> RecommendedAction:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@app.post("/api/actions/approve-all", response_model=ActionsResponse)
-async def api_approve_all() -> ActionsResponse:
+@app.post(
+    "/api/actions/approve-all",
+    response_model=ActionsResponse,
+    dependencies=[Depends(require_user)],
+)
+def api_approve_all() -> ActionsResponse:
     """Approve and execute all pending actions sequentially."""
     approve_all()
     return actions_response()
 
 
-@app.post("/api/actions/{action_id}/dismiss", response_model=RecommendedAction)
-async def api_dismiss_action(action_id: int) -> RecommendedAction:
+@app.post(
+    "/api/actions/{action_id}/dismiss",
+    response_model=RecommendedAction,
+    dependencies=[Depends(require_user)],
+)
+def api_dismiss_action(action_id: int) -> RecommendedAction:
     """Dismiss a pending action without executing it."""
     try:
         return dismiss_action(action_id)

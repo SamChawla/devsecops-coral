@@ -18,6 +18,9 @@ TIMELINE_ROWS = [{"event_time": "2026-05-26", "source": "github", "title": "PR m
 @pytest.fixture(autouse=True)
 def _mock_api_layer(mocker):
     """Mock query runners at the API import site."""
+    # The data endpoints are gated behind auth in production; disable that gate
+    # here so these tests exercise the query/response behavior directly.
+    mocker.patch("devsecops_coral.api.AUTH_ENABLED", False)
     mocker.patch(
         "devsecops_coral.api.run_scan",
         return_value=QueryResult(data=SCAN_ROWS, sql="SELECT scan"),
